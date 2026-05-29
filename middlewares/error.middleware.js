@@ -10,6 +10,12 @@ export const errorHandler = (err, req, res, next) => {
     console.error(err);
   }
 
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+  }
+
   return res.status(statusCode).json({
     statuscode: statusCode,
     message,

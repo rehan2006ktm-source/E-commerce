@@ -16,10 +16,7 @@ function Register() {
     e.preventDefault();
     setBusy(true);
     try {
-      const fd = new FormData();
-      fd.append("role", "customer");
-      Object.entries(form).forEach(([k, v]) => fd.append(k, v));
-      await authService.register(fd);
+      await authService.register({ role: "customer", ...form });
       toast.success("Account created. Please sign in.");
       navigate({ to: "/login" });
     } catch (err) {

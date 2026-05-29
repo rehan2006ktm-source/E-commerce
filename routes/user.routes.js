@@ -6,7 +6,7 @@ import {registerUser,loginuser,logout,getCurrentUser,
  from "../controllers/user.controllers.js"
 
 import {verifyJWT} from "../middlewares/auth.middleware.js"
-import {upload} from "../middlewares/multer.middleware.js"
+import { optionalAvatarUpload } from "../middlewares/optionalUpload.middleware.js"
 import {verifySeller} from "../middlewares/verifyseller.middleware.js"
 import {verifyCustomer} from "../middlewares/verifycustomer.middleware.js"
 import {verifyAdmin} from "../middlewares/verifyadmin.middleware.js"
@@ -14,10 +14,7 @@ const router=Router()
 
 
 // public routes
-router.route("/register").post(
-    upload.single("avatar"),
-    registerUser
-)
+router.route("/register").post(optionalAvatarUpload, registerUser);
 
 router.route("/login").post(loginuser)
 

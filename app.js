@@ -8,30 +8,29 @@ import dotenv from "dotenv";
 dotenv.config( {path:'./.env'});
 
 
+// Reflect request origin (works with credentials + localhost + deployed frontends).
+// Do NOT use app.options("*") — Express 5 path-to-regexp rejects "*" and crashes.
 app.use(
     cors({
-        origin(origin, callback) {
-            if (!origin || process.env.CORS_ORIGIN === "*") {
-                return callback(null, true);
-            }
-            const allowed = process.env.CORS_ORIGIN.split(",").map((o) => o.trim());
-            if (allowed.includes(origin)) {
-                return callback(null, true);
-            }
-            return callback(new Error("Not allowed by CORS"));
-        },
+        origin: true,
         credentials: true,
+        methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+        allowedHeaders: ["Content-Type", "Authorization"],
     }),
 );
-app.use(express.static('public'))
-app.use(express.json(
-    {limit:'16kb'}
-))
-app.use(express.urlencoded({
-    limit:'16kb',
-    extended:true
 
-}))
+app.use(express.static("public"));
+app.use(
+    express.json({
+        limit: "16kb",
+    }),
+);
+app.use(
+    express.urlencoded({
+        limit: "16kb",
+        extended: true,
+    }),
+);
 app.use(cookieParser());
 
 
