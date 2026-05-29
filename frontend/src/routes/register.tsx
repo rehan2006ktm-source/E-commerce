@@ -22,7 +22,11 @@ function Register() {
       await authService.register(fd);
       toast.success("Account created. Please sign in.");
       navigate({ to: "/login" });
-    } catch {} finally { setBusy(false); }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Registration failed");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (

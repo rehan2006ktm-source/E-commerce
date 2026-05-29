@@ -10,8 +10,13 @@ dotenv.config({
 
 const funct=async ()=>{
     try{
-        console.log("URI:", process.env.MONGODB_URI);
-     const response= await mongoose.connect(`${process.env.MONGODB_URI}/${DB_NAME}`);
+        const baseUri = (process.env.MONGODB_URI ?? "").replace(/\/+$/, "");
+        if (!baseUri) {
+            throw new Error("MONGODB_URI is not set in environment");
+        }
+        const connectionUri = `${baseUri}/${DB_NAME}`;
+        console.log("Connecting to MongoDB database:", DB_NAME);
+        const response = await mongoose.connect(connectionUri);
      console.log(response);
     }
     catch(err){

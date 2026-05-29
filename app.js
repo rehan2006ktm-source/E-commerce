@@ -8,10 +8,21 @@ import dotenv from "dotenv";
 dotenv.config( {path:'./.env'});
 
 
-app.use(cors({
-    origin:process.env.CORS_ORIGIN,
-    credentials:true
-}))
+app.use(
+    cors({
+        origin(origin, callback) {
+            if (!origin || process.env.CORS_ORIGIN === "*") {
+                return callback(null, true);
+            }
+            const allowed = process.env.CORS_ORIGIN.split(",").map((o) => o.trim());
+            if (allowed.includes(origin)) {
+                return callback(null, true);
+            }
+            return callback(new Error("Not allowed by CORS"));
+        },
+        credentials: true,
+    }),
+);
 app.use(express.static('public'))
 app.use(express.json(
     {limit:'16kb'}
@@ -32,6 +43,7 @@ import orderRouter from "./routes/order.routes.js";
 import paymentRouter from "./routes/payment.routes.js";
 import reviewRouter from "./routes/review.routes.js";
 import messageRouter from "./routes/message.routes.js";
+import { errorHandler } from "./middlewares/error.middleware.js";
 
 // --- 2. MOUNT THE ROUTERS (API Route Declarations) ---
 // Prefixing with /api/v1 is standard practice for version control in APIs
@@ -45,5 +57,6 @@ app.use("/api/v1/payments", paymentRouter);
 app.use("/api/v1/reviews", reviewRouter);
 app.use("/api/v1/messages", messageRouter);
 
+app.use(errorHandler);
 
 export default app

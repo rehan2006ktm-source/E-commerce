@@ -13,29 +13,16 @@ import  {
 import {verifyJWT} from "../middlewares/auth.middleware.js"
 import {upload} from "../middlewares/multer.middleware.js"
 import {verifySeller} from "../middlewares/verifyseller.middleware.js"
-import {verifyCustomer} from "../middlewares/verifycustomer.middleware.js"
 
 const router=Router()
 
-router.route("/search")
-.get(searchProducts)
+router.route("/search").get(searchProducts);
 
+router.route("/").get(getAllProducts);
 
-router.route("/")
-.get(getAllProducts)
+// seller protected routes (must be before /:productId)
+router.route("/seller/my-products").get(verifyJWT, verifySeller, getSellerProducts);
 
-
-// get single product
-router.route("/:productId")
-.get(getSingleProduct)
-
-
-
-
-
-// seller protected routes
-
-// create product
 router.route("/create")
 .post(
     verifyJWT,
@@ -49,10 +36,10 @@ router.route("/create")
     ]),
 
     addProduct
-)
+);
 
-
-
+// get single product
+router.route("/:productId").get(getSingleProduct);
 
 // update product
 router.route("/:productId")
@@ -79,20 +66,7 @@ router.route("/:productId")
     verifyJWT,
     verifySeller,
     deleteProduct
-)
+);
 
-
-
-
-// seller products
-router.route("/seller/my-products")
-.get(
-    verifyJWT,
-    verifySeller,
-    getSellerProducts
-)
-
-
-
-export default router
+export default router;
 

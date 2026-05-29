@@ -22,80 +22,97 @@ const generateAccessAndRefreshToken=async(userId)=>{
 }   
 
 
-const registerUser=asynchandler( async (req,res,next)=>{
+const registerUser = asynchandler(async (req, res) => {
+    const { role } = req.body;
+    let user;
 
-    const {role} =req.body
+    if (role === "customer") {
+        const { name, email, password, location } = req.body;
+        if ([name, email, password, location].some((val) => val?.trim() === "")) {
+            throw new apierror(400, "all fields required");
+        }
 
+        const existedUser = await User.findOne({ $or: [{ name }, { email }] });
+        if (existedUser) {
+            throw new apierror(409, "user with email or username already exists");
+        }
 
-    if(role==='customer'){
-        const {name,email,password,location}=req.body;
-    if([name,email,password,location].some((val)=>val?.trim()==="")){
-        throw new apierror(400,"all fields reuired")
+        let avatarUrl;
+        const avatarFile = req.file ?? req.files?.avatar?.[0];
+        if (avatarFile?.path) {
+            const uploaded = await cloudinary(avatarFile.path);
+            avatarUrl = uploaded.url;
+        }
+
+        user = await User.create({
+            name,
+            email,
+            password,
+            location,
+            role: "customer",
+            ...(avatarUrl ? { avatar: avatarUrl } : {}),
+        });
+    } else if (role === "seller") {
+        const {
+            name,
+            email,
+            password,
+            location,
+            panNumber,
+            gstNumber,
+            bankAccountNumber,
+            ifscCode,
+            addressProof,
+            businessAddress,
+        } = req.body;
+
+        if (
+            !panNumber ||
+            !gstNumber ||
+            !bankAccountNumber ||
+            !ifscCode ||
+            !addressProof ||
+            !businessAddress
+        ) {
+            throw new apierror(400, "data insufficient");
+        }
+
+        const existedUser = await User.findOne({
+            $or: [{ name }, { email }, { panNumber }, { bankAccountNumber }, { ifscCode }],
+        });
+        if (existedUser) {
+            throw new apierror(409, "seller with these details already exists");
+        }
+
+        let avatarUrl;
+        const avatarFile = req.file ?? req.files?.avatar?.[0];
+        if (avatarFile?.path) {
+            const uploaded = await cloudinary(avatarFile.path);
+            avatarUrl = uploaded.url;
+        }
+
+        user = await User.create({
+            name,
+            email,
+            password,
+            location,
+            role: "seller",
+            panNumber,
+            gstNumber,
+            bankAccountNumber,
+            ifscCode,
+            addressProof,
+            businessAddress,
+            ...(avatarUrl ? { avatar: avatarUrl } : {}),
+        });
+    } else {
+        throw new apierror(400, "role must be customer or seller");
     }
-    //name email must be unique
-    const existedUser=await User.findOne({
-        $or:[{name},{email}]
-    })
-    if(existedUser){
-        throw new apierror(409,"user with email or username or password already existed")
-      }
-      const filepath= req.files?.avatar[0].path;
-      if(filepath){
-        const fileurl=await cloudinary(filepath)
-      }
-      const user=await User.create({
-        name,
-        email,
-        password,
-        location ,
-        avatar:avatar.url
-        
-      })
-    }
-    else {
-        const {name,email,avatar,password,location,panNumber,gstNumber,
-        bankAccountNumber,
-        ifscCode,
-        addressProof,
-        businessAddress}=req.body
-    
-    if(!panNumber || !gstNumber || !bankAccountNumber || !ifscCode || !addressProof || !businessAddress){
-        throw new apierror(400,"data insufficient")
-    }
-    const existedUser=await User.findOne({
-        $or:[{name},{email},{panNumber},{bankAccountNumber},{ifscCode}]
-    })
-    if(existedUser){
-        throw new apierror(409,"user with email or username or password already existed")
-      }
-       const filepath= req.files?.avatar[0].path;
-      if(filepath){
-        const fileurl=await cloudinary(filepath)
-      }
-       const user=await User.create({
-        name,
-        email,
-        password,
-        location ,
-        avatar:fileurl.url,
-        panNumber,
-        gstNumber,
-        bankAccountNumber,
-        ifscCode,
-        addressProof,
-        businessAddress
-        
-      })
 
+    const created = await User.findById(user._id).select("-password -refreshToken");
 
-
-    }
-    return res.status(200).json(
-        new apiresponse(200,user,"registered successfully ")
-    )
-    
-
-})
+    return res.status(201).json(new apiresponse(201, created, "registered successfully"));
+});
 
 const loginuser=asynchandler(async(req,res,next)=>{
     
@@ -121,10 +138,11 @@ const loginuser=asynchandler(async(req,res,next)=>{
 
     const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
 
-    const option={
-        httpOnly:true,
-        secure:true
-    }
+    const option = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    };
     return res
     .status(200)
     .cookie("accessToken",accessToken,option)

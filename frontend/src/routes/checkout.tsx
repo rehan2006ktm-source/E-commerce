@@ -45,7 +45,11 @@ function Checkout() {
       clear();
       const id = (order as any)?._id || (order as any)?.id;
       navigate({ to: id ? "/orders" : "/orders" });
-    } catch {} finally { setSubmitting(false); }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not place order");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (items.length === 0) {

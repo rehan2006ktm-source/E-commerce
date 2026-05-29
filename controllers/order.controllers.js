@@ -11,46 +11,102 @@ import cloudinary from "../utils/cloudinary.js"
 
 
 
-const createOrder = asynchandler(async(req,res,next)=>{
-    const {location, mobile_no, mode_of_payment} = req.body
+const createOrder = asynchandler(async (req, res) => {
+    const {
+        location,
+        mobile_no,
+        mode_of_payment,
+        paymentMethod,
+        items,
+        shippingAddress,
+        totalAmount,
+    } = req.body;
 
-    const cart = await Cart.findOne({user:req.user._id})
+    // Storefront checkout sends line items from the client cart (localStorage).
+    if (Array.isArray(items) && items.length > 0) {
+        const products = [];
+        let price = 0;
 
-    if(!cart || cart.items.length === 0){
-        throw new apierror(400,"cart is empty")
+        for (const item of items) {
+            const productData = await Product.findById(item.product);
+            if (!productData) {
+                throw new apierror(404, "product not found");
+            }
+
+            const quantity = item.quantity || 1;
+            products.push({
+                product: item.product,
+                quantity,
+                productOwner: productData.owner,
+            });
+            price += (item.price ?? productData.price) * quantity;
+        }
+
+        const shipLocation = shippingAddress
+            ? [
+                  shippingAddress.address,
+                  shippingAddress.city,
+                  shippingAddress.postalCode,
+                  shippingAddress.country,
+              ]
+                  .filter(Boolean)
+                  .join(", ")
+            : location;
+
+        if (!shipLocation?.trim()) {
+            throw new apierror(400, "shipping address is required");
+        }
+
+        const order = await Order.create({
+            user_id: req.user._id,
+            products,
+            location: shipLocation,
+            mobile_no,
+            price: totalAmount ?? price,
+            status: "placed",
+            mode_of_payment: mode_of_payment ?? paymentMethod ?? "card",
+        });
+
+        return res.status(201).json(new apiresponse(201, order, "order created successfully"));
     }
 
-    const products = []
+    const cart = await Cart.findOne({ user: req.user._id });
 
-    for(const item of cart.items){
+    if (!cart || cart.items.length === 0) {
+        throw new apierror(400, "cart is empty");
+    }
 
-    const productData = await Product.findById(item.product)
+    const products = [];
 
-    products.push({
-        product:item.product,
-        quantity:item.quantity,
-        productOwner:productData.owner
-    })
-}
+    for (const item of cart.items) {
+        const productData = await Product.findById(item.product);
+        if (!productData) {
+            throw new apierror(404, "product not found");
+        }
+
+        products.push({
+            product: item.product,
+            quantity: item.quantity,
+            productOwner: productData.owner,
+        });
+    }
 
     const order = await Order.create({
-        user_id:req.user._id,
+        user_id: req.user._id,
         products,
         location,
         mobile_no,
-        price:cart.totalPrice,
-        status:"placed",
-        mode_of_payment
-    })
+        price: cart.totalPrice,
+        status: "placed",
+        mode_of_payment,
+    });
 
-    cart.items = []
-    cart.totalPrice = 0
-    await cart.save()
+    cart.items = [];
+    cart.totalPrice = 0;
+    await cart.save();
 
-    return res.status(201).json(
-        new apiresponse(201,order,"order created successfully")
-    )
-})
+    return res.status(201).json(new apiresponse(201, order, "order created successfully"));
+});
 const getMyOrders = asynchandler(async(req,res,next)=>{
     const orders = await Order.find({user_id:req.user._id})
 
