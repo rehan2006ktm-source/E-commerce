@@ -3,10 +3,12 @@ import dotenv from "dotenv";
 dotenv.config( {path:'./.env'});
 import app from './app.js'
 
+const PORT = process.env.PORT || 5000;
+
 funct()
 .then((result)=>{
-    app.listen(process.env.PORT||5000,()=>{
-        console.log(`MONGODB CONNECT SUCCESSFULLY ON PORT ${process.env.PORT}`)
+    app.listen(PORT,()=>{
+        console.log(`MONGODB CONNECT SUCCESSFULLY ON PORT ${PORT}`)
     })
     
 })
@@ -14,4 +16,4 @@ funct()
     console.log("mongo db connection falied");
 })
 
-const rehan="rehan"
+const rehan="reha1"
