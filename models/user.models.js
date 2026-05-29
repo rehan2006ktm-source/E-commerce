@@ -71,7 +71,7 @@ userSchema.pre("save",async function(next){
     return next()
 })
 
-userSchema.methods.ispasswordCorrect=async function(password){
+userSchema.methods.isPasswordCorrect=async function(password){
     return await bcrypt.compare(password,this.password);
 }
 userSchema.methods.generateAccessToken=function(){
@@ -101,3 +101,5 @@ userSchema.methods.generateRefreshToken=function(){
 }
 
 export default User
+
+const rehan =hvjvhjv;
