@@ -5,7 +5,7 @@ import app from './app.js'
 
 funct()
 .then((result)=>{
-    app.listen(process.env.PORT,()=>{
+    app.listen(process.env.PORT||5000,()=>{
         console.log(`MONGODB CONNECT SUCCESSFULLY ON PORT ${process.env.PORT}`)
     })
     
