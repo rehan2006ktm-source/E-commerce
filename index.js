@@ -13,3 +13,5 @@ funct()
 .catch((err)=>{
     console.log("mongo db connection falied");
 })
+
+const rehan="rehan"
