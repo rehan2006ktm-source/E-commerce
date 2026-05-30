@@ -1,11 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
+import { useCategories } from '../hooks/useCategories';
 import api from '../config/axios';
 import Button from '../components/common/Button';
-import { Package, ShieldCheck, Mail, MapPin, Calendar, CreditCard, XSquare, Settings } from 'lucide-react';
+import {
+  Package,
+  ShieldCheck,
+  Mail,
+  MapPin,
+  Calendar,
+  CreditCard,
+  Settings,
+  Plus,
+  Trash2,
+  FolderKanban,
+  Edit,
+  Sparkles,
+  ShoppingBag,
+  TrendingUp
+} from 'lucide-react';
 
 interface OrderItem {
-  product: string;
+  product: {
+    _id: string;
+    title: string;
+    price: number;
+    images?: string[];
+  } | string;
   quantity: number;
   productOwner?: string;
   _id: string;
@@ -13,7 +34,7 @@ interface OrderItem {
 
 interface OrderDetails {
   _id: string;
-  user_id: string;
+  user_id: any; // User object or ID
   products: OrderItem[];
   location: string;
   mobile_no: string;
@@ -24,21 +45,69 @@ interface OrderDetails {
   updatedAt: string;
 }
 
+interface SellerProduct {
+  _id: string;
+  title: string;
+  description?: string;
+  price: number;
+  stock: number;
+  category?: string;
+  images: string[];
+  rating?: number;
+}
+
 export const Dashboard: React.FC = () => {
   const { user, updateProfile, isLoading: isAuthLoading } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<'orders' | 'profile'>('orders');
+  const { categories } = useCategories();
 
-  // Profile Edit fields
+  const isSeller = user?.role === 'seller';
+
+  // Tabs
+  // Customer tabs: 'orders' | 'profile'
+  // Seller tabs: 'inventory' | 'seller-orders' | 'profile'
+  const [activeTab, setActiveTab] = useState<string>(isSeller ? 'inventory' : 'orders');
+
+  // Customer profile fields
   const [name, setName] = useState(user?.name || '');
   const [location, setLocation] = useState(user?.location || '');
   const [profileSuccess, setProfileSuccess] = useState<string | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
 
-  // Orders State
+  // Customer orders
   const [orders, setOrders] = useState<OrderDetails[]>([]);
   const [isOrdersLoading, setIsOrdersLoading] = useState(false);
   const [ordersError, setOrdersError] = useState<string | null>(null);
 
+  // Seller Inventory
+  const [sellerProducts, setSellerProducts] = useState<SellerProduct[]>([]);
+  const [isProductsLoading, setIsProductsLoading] = useState(false);
+  const [productsError, setProductsError] = useState<string | null>(null);
+
+  // Add / Edit Product modal or view
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editProductId, setEditProductId] = useState<string | null>(null);
+  const [productTitle, setProductTitle] = useState('');
+  const [productDesc, setProductDesc] = useState('');
+  const [productPrice, setProductPrice] = useState('');
+  const [productStock, setProductStock] = useState('');
+  const [productCategory, setProductCategory] = useState('');
+  const [productImages, setProductImages] = useState<FileList | null>(null);
+  const [productActionError, setProductActionError] = useState<string | null>(null);
+  const [productActionLoading, setProductActionLoading] = useState(false);
+
+  // Seller Orders
+  const [sellerOrders, setSellerOrders] = useState<OrderDetails[]>([]);
+  const [isSellerOrdersLoading, setIsSellerOrdersLoading] = useState(false);
+  const [sellerOrdersError, setSellerOrdersError] = useState<string | null>(null);
+
+  // Load Categories on startup (assign default if list exists)
+  useEffect(() => {
+    if (categories.length > 0) {
+      setProductCategory(categories[0]._id);
+    }
+  }, [categories]);
+
+  // Fetch Customer Orders
   const fetchMyOrders = async () => {
     setIsOrdersLoading(true);
     setOrdersError(null);
@@ -46,16 +115,50 @@ export const Dashboard: React.FC = () => {
       const response = await api.get('/orders/my-orders');
       setOrders(response.data.data || []);
     } catch (err: any) {
-      setOrdersError(err.response?.data?.message || 'Failed to fetch order history.');
+      setOrdersError(err.response?.data?.message || 'Failed to fetch customer orders.');
     } finally {
       setIsOrdersLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchMyOrders();
-  }, []);
+  // Fetch Seller Products
+  const fetchSellerProducts = async () => {
+    setIsProductsLoading(true);
+    setProductsError(null);
+    try {
+      const response = await api.get('/products/seller/my-products');
+      setSellerProducts(response.data.data || []);
+    } catch (err: any) {
+      setProductsError(err.response?.data?.message || 'Failed to fetch your listed products.');
+    } finally {
+      setIsProductsLoading(false);
+    }
+  };
 
+  // Fetch Seller Orders
+  const fetchSellerOrders = async () => {
+    setIsSellerOrdersLoading(true);
+    setSellerOrdersError(null);
+    try {
+      const response = await api.get('/orders/seller/orders');
+      setSellerOrders(response.data.data || []);
+    } catch (err: any) {
+      setSellerOrdersError(err.response?.data?.message || 'Failed to fetch seller orders.');
+    } finally {
+      setIsSellerOrdersLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isSeller) {
+      fetchSellerProducts();
+      fetchSellerOrders();
+    } else {
+      fetchMyOrders();
+    }
+  }, [isSeller]);
+
+  // Handle profile save
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setProfileSuccess(null);
@@ -68,16 +171,114 @@ export const Dashboard: React.FC = () => {
     }
   };
 
+  // Customer: Cancel placed order
   const handleCancelOrder = async (orderId: string) => {
     if (!window.confirm('Are you sure you want to cancel this order?')) return;
     try {
       await api.patch(`/orders/${orderId}/cancel`);
-      // Update local state instead of full reload
       setOrders((prev) =>
         prev.map((ord) => (ord._id === orderId ? { ...ord, status: 'cancelled' } : ord))
       );
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to cancel order.');
+    }
+  };
+
+  // Seller: Add / Edit Product submission
+  const handleProductSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProductActionError(null);
+    setProductActionLoading(true);
+
+    if (!productTitle || !productPrice || !productStock) {
+      setProductActionError('Title, price, and stock quantities are required.');
+      setProductActionLoading(false);
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('title', productTitle);
+    formData.append('description', productDesc);
+    formData.append('price', productPrice);
+    formData.append('stock', productStock);
+    formData.append('category', productCategory);
+    
+    if (productImages) {
+      for (let i = 0; i < productImages.length; i++) {
+        formData.append('images', productImages[i]);
+      }
+    }
+
+    try {
+      if (editProductId) {
+        // Edit existing product
+        // Note: For simple implementation we PATCH fields. If files are changing, handle accordingly.
+        await api.patch(`/products/${editProductId}`, {
+          title: productTitle,
+          description: productDesc,
+          price: Number(productPrice),
+          stock: Number(productStock),
+          category: productCategory,
+        });
+      } else {
+        // Add new product
+        await api.post('/products/create', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+      }
+
+      // Reset Form fields
+      setProductTitle('');
+      setProductDesc('');
+      setProductPrice('');
+      setProductStock('');
+      setProductImages(null);
+      setShowAddForm(false);
+      setEditProductId(null);
+
+      // Reload listed products
+      fetchSellerProducts();
+    } catch (err: any) {
+      setProductActionError(err.response?.data?.message || 'Failed to register product.');
+    } finally {
+      setProductActionLoading(false);
+    }
+  };
+
+  // Seller: Trigger edit populate
+  const triggerEditProduct = (prod: SellerProduct) => {
+    setEditProductId(prod._id);
+    setProductTitle(prod.title);
+    setProductDesc(prod.description || '');
+    setProductPrice(prod.price.toString());
+    setProductStock(prod.stock.toString());
+    setProductCategory(prod.category || (categories[0]?._id || ''));
+    setShowAddForm(true);
+  };
+
+  // Seller: Delete listed product
+  const handleDeleteProduct = async (productId: string) => {
+    if (!window.confirm('Are you sure you want to delete this product listing? This cannot be undone.')) return;
+    try {
+      await api.delete(`/products/${productId}`);
+      setSellerProducts((prev) => prev.filter((p) => p._id !== productId));
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to delete product.');
+    }
+  };
+
+  // Seller: Update status of customer order
+  const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
+    try {
+      await api.patch(`/orders/${orderId}/status`, { status: newStatus });
+      // Update local state list
+      setSellerOrders((prev) =>
+        prev.map((ord) => (ord._id === orderId ? { ...ord, status: ord.status = newStatus as any } : ord))
+      );
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to update order delivery status.');
     }
   };
 
@@ -102,10 +303,10 @@ export const Dashboard: React.FC = () => {
     <div className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-10 items-start">
         
-        {/* SIDE PANEL: User card & tabs */}
+        {/* SIDEBAR NAVIGATION PANEL */}
         <div className="space-y-6">
           
-          {/* User profile card summary */}
+          {/* Profile Card Summary */}
           <div className="glass p-6 rounded-3xl text-center space-y-4">
             <div className="w-20 h-20 rounded-full overflow-hidden border border-purple-500 bg-purple-900 flex items-center justify-center text-xl font-bold text-white mx-auto">
               {user?.avatar ? (
@@ -118,7 +319,7 @@ export const Dashboard: React.FC = () => {
             <div>
               <h3 className="font-extrabold text-white text-lg leading-snug line-clamp-1">{user?.name}</h3>
               <span className="text-[10px] uppercase font-bold tracking-widest text-purple-400 block mt-1">
-                {user?.role} Portal
+                {user?.role} portal
               </span>
             </div>
 
@@ -136,19 +337,52 @@ export const Dashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Navigation Tab buttons */}
+          {/* Dynamic Tab links depending on user Role */}
           <div className="glass p-2.5 rounded-2xl flex flex-col gap-1.5">
-            <button
-              onClick={() => setActiveTab('orders')}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                activeTab === 'orders'
-                  ? 'bg-purple-600 text-white'
-                  : 'text-gray-400 hover:bg-slate-900/60 hover:text-white'
-              }`}
-            >
-              <Package size={16} />
-              <span>Order History</span>
-            </button>
+            {!isSeller ? (
+              <>
+                <button
+                  onClick={() => setActiveTab('orders')}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                    activeTab === 'orders'
+                      ? 'bg-purple-600 text-white'
+                      : 'text-gray-400 hover:bg-slate-900/60 hover:text-white'
+                  }`}
+                >
+                  <Package size={16} />
+                  <span>My Orders</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => {
+                    setActiveTab('inventory');
+                    setShowAddForm(false);
+                  }}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                    activeTab === 'inventory'
+                      ? 'bg-purple-600 text-white'
+                      : 'text-gray-400 hover:bg-slate-900/60 hover:text-white'
+                  }`}
+                >
+                  <FolderKanban size={16} />
+                  <span>Listed Inventory</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('seller-orders')}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                    activeTab === 'seller-orders'
+                      ? 'bg-purple-600 text-white'
+                      : 'text-gray-400 hover:bg-slate-900/60 hover:text-white'
+                  }`}
+                >
+                  <ShoppingBag size={16} />
+                  <span>Manage Sales</span>
+                </button>
+              </>
+            )}
+
             <button
               onClick={() => setActiveTab('profile')}
               className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
@@ -158,19 +392,18 @@ export const Dashboard: React.FC = () => {
               }`}
             >
               <Settings size={16} />
-              <span>Account Settings</span>
+              <span>Profile Settings</span>
             </button>
           </div>
 
         </div>
 
-        {/* MAIN PANEL: Active Tab content */}
+        {/* MAIN PANEL CONTENT VIEW */}
         <div className="lg:col-span-3">
           
-          {/* TAB 1: ORDERS HISTORY LIST */}
-          {activeTab === 'orders' && (
+          {/* TAB: CUSTOMER ORDERS LIST */}
+          {activeTab === 'orders' && !isSeller && (
             <div className="space-y-6">
-              
               <div className="flex justify-between items-center pb-4 border-b border-white/5">
                 <h2 className="text-lg font-bold text-white uppercase tracking-wider m-0">Purchase History</h2>
                 <Button variant="outline" size="sm" onClick={fetchMyOrders} isLoading={isOrdersLoading}>
@@ -180,48 +413,30 @@ export const Dashboard: React.FC = () => {
 
               {isOrdersLoading && orders.length === 0 ? (
                 <div className="py-24 text-center space-y-4">
-                  <div className="w-10 h-10 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                  <div className="w-10 h-10 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto animate-pulse"></div>
                   <p className="text-sm text-gray-500">Checking delivery records...</p>
                 </div>
               ) : ordersError ? (
-                <div className="p-4 rounded-xl bg-red-650/10 border border-red-500/25 flex items-start gap-3">
-                  <ShieldCheck className="text-red-500 shrink-0 mt-0.5" size={16} />
-                  <p className="text-xs text-red-400 font-medium">{ordersError}</p>
+                <div className="p-4 rounded-xl bg-red-650/10 border border-red-500/25 text-xs text-red-400 font-medium">
+                  {ordersError}
                 </div>
               ) : orders.length === 0 ? (
                 <div className="text-center py-20 glass rounded-3xl space-y-4">
-                  <div className="w-12 h-12 rounded-full bg-slate-900 border border-white/5 flex items-center justify-center text-gray-600 mx-auto">
-                    <Package size={24} />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-gray-300">No placed orders found</h3>
-                    <p className="text-xs text-gray-500 mt-1 max-w-[220px] mx-auto leading-normal">
-                      Start browsing our store catalogue to acquire premium collections.
-                    </p>
-                  </div>
+                  <p className="text-sm text-gray-500">You haven't placed any orders yet.</p>
                 </div>
               ) : (
                 <div className="space-y-6">
                   {orders.map((order) => {
-                    const orderDate = new Date(order.createdAt).toLocaleDateString(undefined, {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                    });
                     const isCancelable = ['placed', 'confirmed'].includes(order.status);
-
                     return (
                       <div key={order._id} className="glass p-6 rounded-3xl space-y-4">
-                        
-                        {/* Order Header summary */}
                         <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-white/5">
-                          <div className="space-y-1">
+                          <div>
                             <span className="text-[10px] text-gray-500 uppercase font-mono block">Order ID</span>
                             <span className="text-xs font-bold font-mono text-purple-400">{order._id}</span>
                           </div>
-                          
                           <div className="flex items-center gap-4">
-                            <div className="text-right space-y-1">
+                            <div className="text-right">
                               <span className="text-[10px] text-gray-500 uppercase font-bold block">Grand Total</span>
                               <span className="text-sm font-bold text-white">${order.price.toLocaleString()}</span>
                             </div>
@@ -229,32 +444,367 @@ export const Dashboard: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Order Items details list */}
                         <div className="space-y-2 text-xs text-gray-400">
                           <div className="flex items-center gap-2">
                             <Calendar size={14} className="text-gray-600" />
-                            <span>Placed on {orderDate}</span>
+                            <span>Placed on {new Date(order.createdAt).toLocaleDateString()}</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <MapPin size={14} className="text-gray-600" />
                             <span className="line-clamp-1">Destination: {order.location}</span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <CreditCard size={14} className="text-gray-600" />
-                            <span className="uppercase font-mono">Payment: {order.mode_of_payment}</span>
-                          </div>
                         </div>
 
-                        {/* Actions: Cancel buttons */}
                         {isCancelable && (
                           <div className="pt-2 border-t border-white/5 flex justify-end">
                             <button
                               onClick={() => handleCancelOrder(order._id)}
-                              className="flex items-center gap-2.5 px-4 py-2 rounded-xl bg-red-650/10 border border-red-500/20 hover:border-red-500/40 text-red-400 hover:text-red-300 text-xs font-bold uppercase transition-all cursor-pointer"
+                              className="px-4 py-2 bg-red-650/10 border border-red-500/20 hover:border-red-500/40 text-red-400 rounded-xl text-xs font-bold uppercase transition-all cursor-pointer"
                             >
-                              <XSquare size={14} />
-                              <span>Cancel Order</span>
+                              Cancel Order
                             </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB: SELLER INVENTORY (My Products & Add Product) */}
+          {activeTab === 'inventory' && isSeller && (
+            <div className="space-y-6">
+              
+              <div className="flex justify-between items-center pb-4 border-b border-white/5">
+                <div>
+                  <h2 className="text-lg font-bold text-white uppercase tracking-wider m-0">Listed Inventory</h2>
+                  <p className="text-xs text-gray-500 mt-1">Manage and edit your active 3D models and catalog items.</p>
+                </div>
+                {!showAddForm ? (
+                  <Button variant="primary" size="sm" className="gap-2" onClick={() => setShowAddForm(true)}>
+                    <Plus size={16} />
+                    <span>List New Item</span>
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setShowAddForm(false);
+                      setEditProductId(null);
+                      setProductTitle('');
+                      setProductDesc('');
+                      setProductPrice('');
+                      setProductStock('');
+                      setProductImages(null);
+                    }}
+                  >
+                    Cancel Action
+                  </Button>
+                )}
+              </div>
+
+              {productsError && (
+                <div className="p-4 rounded-xl bg-red-650/10 border border-red-500/25 text-xs text-red-400 font-medium">
+                  {productsError}
+                </div>
+              )}
+
+              {/* Add / Edit Form Panel */}
+              {showAddForm && (
+                <div className="glass p-8 rounded-3xl space-y-6">
+                  <div className="flex items-center gap-2 text-purple-400">
+                    <Sparkles size={18} />
+                    <h3 className="text-sm font-bold uppercase tracking-wider">
+                      {editProductId ? 'Modify Product Specifications' : 'List New Premium Product'}
+                    </h3>
+                  </div>
+
+                  {productActionError && (
+                    <div className="p-4 rounded-xl bg-red-650/10 border border-red-500/25 text-xs text-red-400 font-medium">
+                      {productActionError}
+                    </div>
+                  )}
+
+                  <form onSubmit={handleProductSubmit} className="space-y-6">
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                      
+                      {/* Title */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase text-gray-400 tracking-wider block">Product Title</label>
+                        <input
+                          type="text"
+                          required
+                          value={productTitle}
+                          onChange={(e) => setProductTitle(e.target.value)}
+                          placeholder="Futuristic Spatial Headset"
+                          className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-white/5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-purple-500"
+                        />
+                      </div>
+
+                      {/* Category Selector */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase text-gray-400 tracking-wider block">Category Class</label>
+                        <select
+                          value={productCategory}
+                          onChange={(e) => setProductCategory(e.target.value)}
+                          className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-white/5 text-sm text-white focus:outline-none focus:border-purple-500 cursor-pointer"
+                        >
+                          {categories.map((cat) => (
+                            <option key={cat._id} value={cat._id} className="bg-slate-950">
+                              {cat.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Price */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase text-gray-400 tracking-wider block">Price ($ USD)</label>
+                        <input
+                          type="number"
+                          required
+                          min="1"
+                          value={productPrice}
+                          onChange={(e) => setProductPrice(e.target.value)}
+                          placeholder="299"
+                          className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-white/5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-purple-500"
+                        />
+                      </div>
+
+                      {/* Stock Quantity */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase text-gray-400 tracking-wider block">Initial Stock Volume</label>
+                        <input
+                          type="number"
+                          required
+                          min="0"
+                          value={productStock}
+                          onChange={(e) => setProductStock(e.target.value)}
+                          placeholder="10"
+                          className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-white/5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-purple-500"
+                        />
+                      </div>
+
+                      {/* Description */}
+                      <div className="space-y-2 sm:col-span-2">
+                        <label className="text-xs font-bold uppercase text-gray-400 tracking-wider block">Detailed Overview Description</label>
+                        <textarea
+                          rows={4}
+                          value={productDesc}
+                          onChange={(e) => setProductDesc(e.target.value)}
+                          placeholder="Provide details, performance characteristics, or size parameters..."
+                          className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-white/5 text-sm text-white placeholder-gray-650 focus:outline-none focus:border-purple-500"
+                        />
+                      </div>
+
+                      {/* Images Selection (Omit if Editing to keep it simple) */}
+                      {!editProductId && (
+                        <div className="space-y-2 sm:col-span-2">
+                          <label className="text-xs font-bold uppercase text-gray-400 tracking-wider block">
+                            Product Images (Up to 5 images)
+                          </label>
+                          <input
+                            type="file"
+                            multiple
+                            accept="image/*"
+                            onChange={(e) => setProductImages(e.target.files)}
+                            className="w-full file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:uppercase file:bg-purple-900/20 file:text-purple-400 hover:file:bg-purple-900/30 text-xs text-gray-500 bg-slate-900 border border-white/5 p-2 rounded-xl cursor-pointer"
+                          />
+                        </div>
+                      )}
+
+                    </div>
+
+                    <div className="flex justify-end pt-4 gap-4">
+                      <Button
+                        variant="outline"
+                        type="button"
+                        onClick={() => {
+                          setShowAddForm(false);
+                          setEditProductId(null);
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" isLoading={productActionLoading}>
+                        {editProductId ? 'Save Product Modifications' : 'Publish Product Listing'}
+                      </Button>
+                    </div>
+
+                  </form>
+                </div>
+              )}
+
+              {/* Listed Products Grid */}
+              {!showAddForm && (
+                <>
+                  {isProductsLoading && sellerProducts.length === 0 ? (
+                    <div className="py-24 text-center">
+                      <div className="w-10 h-10 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                      <p className="text-sm text-gray-500 mt-4">Retrieving catalog inventory details...</p>
+                    </div>
+                  ) : sellerProducts.length === 0 ? (
+                    <div className="text-center py-20 glass rounded-3xl space-y-4">
+                      <div className="w-12 h-12 rounded-full bg-slate-900 border border-white/5 flex items-center justify-center text-gray-600 mx-auto">
+                        <FolderKanban size={24} />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-gray-300">No active products listed</h3>
+                        <p className="text-xs text-gray-550 mt-1">
+                          Click "List New Item" at the top to publish your first 3D catalog model.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {sellerProducts.map((prod) => (
+                        <div key={prod._id} className="glass p-5 rounded-2xl flex gap-4">
+                          <div className="w-20 h-20 rounded-xl overflow-hidden bg-slate-950 shrink-0 border border-white/5">
+                            <img
+                              src={prod.images?.[0] || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200'}
+                              alt={prod.title}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+
+                          <div className="flex-grow flex flex-col justify-between min-w-0">
+                            <div>
+                              <h4 className="text-sm font-bold text-white truncate leading-snug">{prod.title}</h4>
+                              <div className="flex items-center gap-3 mt-1 text-[10px] text-gray-500">
+                                <span>Price: <strong className="text-purple-400">${prod.price}</strong></span>
+                                <span>Stock: <strong className="text-gray-300">{prod.stock} units</strong></span>
+                              </div>
+                            </div>
+
+                            <div className="flex gap-2.5 pt-3 border-t border-white/5 mt-3 justify-end">
+                              <button
+                                onClick={() => triggerEditProduct(prod)}
+                                className="p-2 bg-slate-900 border border-white/5 hover:border-purple-500/25 hover:text-purple-400 text-gray-400 rounded-xl transition-all cursor-pointer"
+                                title="Edit specs"
+                              >
+                                <Edit size={14} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteProduct(prod._id)}
+                                className="p-2 bg-slate-900 border border-white/5 hover:border-red-500/25 hover:text-red-500 text-gray-400 rounded-xl transition-all cursor-pointer"
+                                title="Delete listing"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+
+            </div>
+          )}
+
+          {/* TAB: SELLER MANAGE CUSTOMER ORDERS */}
+          {activeTab === 'seller-orders' && isSeller && (
+            <div className="space-y-6">
+              
+              <div className="flex justify-between items-center pb-4 border-b border-white/5">
+                <div>
+                  <h2 className="text-lg font-bold text-white uppercase tracking-wider m-0">Incoming Orders</h2>
+                  <p className="text-xs text-gray-500 mt-1">Verify placements and update transit shipping coordinates.</p>
+                </div>
+                <Button variant="outline" size="sm" onClick={fetchSellerOrders} isLoading={isSellerOrdersLoading}>
+                  Sync Sales
+                </Button>
+              </div>
+
+              {isSellerOrdersLoading && sellerOrders.length === 0 ? (
+                <div className="py-24 text-center">
+                  <div className="w-10 h-10 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                  <p className="text-sm text-gray-500 mt-4">Retrieving delivery logs...</p>
+                </div>
+              ) : sellerOrdersError ? (
+                <div className="p-4 rounded-xl bg-red-650/10 border border-red-500/25 text-xs text-red-400 font-medium">
+                  {sellerOrdersError}
+                </div>
+              ) : sellerOrders.length === 0 ? (
+                <div className="text-center py-20 glass rounded-3xl space-y-4">
+                  <div className="w-12 h-12 rounded-full bg-slate-900 border border-white/5 flex items-center justify-center text-gray-600 mx-auto">
+                    <TrendingUp size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-300">No client sales recorded</h3>
+                    <p className="text-xs text-gray-550 mt-1">
+                      Customer purchases containing your listed products will propagate here automatically.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {sellerOrders.map((order) => {
+                    return (
+                      <div key={order._id} className="glass p-6 rounded-3xl space-y-4">
+                        
+                        <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-white/5">
+                          <div>
+                            <span className="text-[10px] text-gray-500 uppercase font-mono block">Order ID Reference</span>
+                            <span className="text-xs font-bold font-mono text-purple-400">{order._id}</span>
+                          </div>
+                          
+                          <div className="flex items-center gap-4">
+                            <div className="text-right">
+                              <span className="text-[10px] text-gray-500 uppercase font-bold block">Assigned Total</span>
+                              <span className="text-sm font-bold text-white">${order.price.toLocaleString()}</span>
+                            </div>
+                            {getStatusBadge(order.status)}
+                          </div>
+                        </div>
+
+                        {/* Delivery Specs */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-gray-400 py-2">
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <MapPin size={14} className="text-gray-650" />
+                              <span className="line-clamp-1">Address: {order.location}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Calendar size={14} className="text-gray-650" />
+                              <span>Placed on {new Date(order.createdAt).toLocaleDateString()}</span>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <CreditCard size={14} className="text-gray-650" />
+                              <span className="uppercase font-mono">Method: {order.mode_of_payment}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <ShieldCheck size={14} className="text-gray-650" />
+                              <span>Buyer Contact: {order.mobile_no}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Dropdown status transition selector */}
+                        {order.status !== 'cancelled' && order.status !== 'delivered' && (
+                          <div className="pt-4 border-t border-white/5 flex items-center justify-between gap-4">
+                            <span className="text-[10px] uppercase font-bold text-gray-500">Update Ship Status</span>
+                            
+                            <select
+                              value={order.status}
+                              onChange={(e) => handleUpdateOrderStatus(order._id, e.target.value)}
+                              className="px-3 py-2 rounded-xl bg-slate-900 border border-white/5 text-xs text-purple-300 focus:outline-none focus:border-purple-500 cursor-pointer"
+                            >
+                              <option value="placed">Placed</option>
+                              <option value="confirmed">Confirmed</option>
+                              <option value="packed">Packed</option>
+                              <option value="shipped">Shipped</option>
+                              <option value="out_for_delivery">Out For Delivery</option>
+                              <option value="delivered">Delivered</option>
+                            </select>
                           </div>
                         )}
 
@@ -267,26 +817,24 @@ export const Dashboard: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 2: PROFILE ACCREDITATION CONFIG */}
+          {/* TAB: PROFILE CONFIGURATION (Customer & Seller Shared) */}
           {activeTab === 'profile' && (
             <div className="glass p-8 rounded-3xl space-y-6">
               
               <div className="pb-4 border-b border-white/5">
-                <h2 className="text-lg font-bold text-white uppercase tracking-wider m-0">Profile Management</h2>
-                <p className="text-xs text-gray-500 mt-1">Keep your basic account details and contact coordinates updated.</p>
+                <h2 className="text-lg font-bold text-white uppercase tracking-wider m-0">Profile Information</h2>
+                <p className="text-xs text-gray-500 mt-1">Keep your display name and shipping/business location accurate.</p>
               </div>
 
               {profileSuccess && (
-                <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-start gap-3">
-                  <ShieldCheck className="text-emerald-500 shrink-0 mt-0.5" size={16} />
-                  <p className="text-xs text-emerald-400 font-medium leading-relaxed">{profileSuccess}</p>
+                <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-xs text-emerald-400 font-medium">
+                  {profileSuccess}
                 </div>
               )}
 
               {profileError && (
-                <div className="p-4 rounded-xl bg-red-650/10 border border-red-500/25 flex items-start gap-3">
-                  <ShieldCheck className="text-red-500 shrink-0 mt-0.5" size={16} />
-                  <p className="text-xs text-red-400 font-medium leading-relaxed">{profileError}</p>
+                <div className="p-4 rounded-xl bg-red-650/10 border border-red-500/25 text-xs text-red-400 font-medium">
+                  {profileError}
                 </div>
               )}
 
@@ -296,32 +844,32 @@ export const Dashboard: React.FC = () => {
                   
                   {/* Name */}
                   <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase text-gray-400 tracking-wider block">Full Name</label>
+                    <label className="text-xs font-bold uppercase text-gray-400 tracking-wider block">Profile Name</label>
                     <input
                       type="text"
                       required
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-white/5 text-sm text-white placeholder-gray-650 focus:outline-none focus:border-purple-500"
+                      className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-white/5 text-sm text-white focus:outline-none focus:border-purple-500"
                     />
                   </div>
 
                   {/* Location */}
                   <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase text-gray-400 tracking-wider block">Location Address</label>
+                    <label className="text-xs font-bold uppercase text-gray-400 tracking-wider block">Registered Location</label>
                     <input
                       type="text"
                       value={location}
                       onChange={(e) => setLocation(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-white/5 text-sm text-white placeholder-gray-650 focus:outline-none focus:border-purple-500"
+                      className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-white/5 text-sm text-white focus:outline-none focus:border-purple-500"
                     />
                   </div>
 
                 </div>
 
                 <div className="pt-4 flex justify-end">
-                  <Button type="submit" isLoading={isAuthLoading} className="uppercase font-bold text-xs tracking-wider">
-                    Save Changes
+                  <Button type="submit" isLoading={isAuthLoading}>
+                    Save Modifications
                   </Button>
                 </div>
 
