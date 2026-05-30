@@ -62,7 +62,7 @@ const createOrder = asynchandler(async (req, res) => {
             products,
             location: shipLocation,
             mobile_no,
-            price: totalAmount ?? price,
+            price: totalAmount || price,
             status: "placed",
             mode_of_payment: mode_of_payment ?? paymentMethod ?? "card",
         });
@@ -77,6 +77,7 @@ const createOrder = asynchandler(async (req, res) => {
     }
 
     const products = [];
+    let price = 0;
 
     for (const item of cart.items) {
         const productData = await Product.findById(item.product);
@@ -89,6 +90,7 @@ const createOrder = asynchandler(async (req, res) => {
             quantity: item.quantity,
             productOwner: productData.owner,
         });
+        price += productData.price * item.quantity;
     }
 
     const order = await Order.create({
@@ -96,7 +98,7 @@ const createOrder = asynchandler(async (req, res) => {
         products,
         location,
         mobile_no,
-        price: cart.totalPrice,
+        price: cart.totalPrice || cart.totalprices || price,
         status: "placed",
         mode_of_payment,
     });
@@ -108,7 +110,7 @@ const createOrder = asynchandler(async (req, res) => {
     return res.status(201).json(new apiresponse(201, order, "order created successfully"));
 });
 const getMyOrders = asynchandler(async(req,res,next)=>{
-    const orders = await Order.find({user_id:req.user._id})
+    const orders = await Order.find({user_id:req.user._id}).populate("products.product")
 
     return res.status(200).json(
         new apiresponse(200,orders,"orders fetched successfully")
@@ -139,7 +141,7 @@ const cancelOrder = asynchandler(async(req,res,next)=>{
 const getSingleOrder = asynchandler(async(req,res,next)=>{
     const {orderId} = req.params
 
-    const order = await Order.findById(orderId)
+    const order = await Order.findById(orderId).populate("products.product")
 
     if(!order){
         throw new apierror(404,"order not found")
@@ -151,12 +153,11 @@ const getSingleOrder = asynchandler(async(req,res,next)=>{
 })
 
 
-// getSellerOrders
 const getSellerOrders = asynchandler(async(req,res,next)=>{
 
     const orders = await Order.find({
         "products.productOwner":req.user._id
-    })
+    }).populate("products.product")
 
     return res.status(200).json(
         new apiresponse(

@@ -69,6 +69,19 @@ const  getCart = asynchandler(async(req,res,next)=>{
         user:req.user._id
     }).populate("items.product")
 
+    if (cart) {
+        let calculatedTotal = 0;
+        for (const item of cart.items) {
+            if (item.product && item.product.price) {
+                calculatedTotal += item.product.price * item.quantity;
+            }
+        }
+        if (cart.totalPrice !== calculatedTotal) {
+            cart.totalPrice = calculatedTotal;
+            await cart.save();
+        }
+    }
+
     return res.status(200).json(
         new apiresponse(200,cart,"cart fetched successfully")
     )

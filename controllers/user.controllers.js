@@ -201,7 +201,18 @@ const getCurrentUser = asynchandler(async(req,res,next)=>{
 })
 
 const updateProfile = asynchandler(async(req,res,next)=>{
-    const {name, mobile_no, location} = req.body
+    const {
+        name,
+        mobile_no,
+        location,
+        role,
+        panNumber,
+        gstNumber,
+        bankAccountNumber,
+        ifscCode,
+        addressProof,
+        businessAddress
+    } = req.body
 
     const user = await User.findByIdAndUpdate(
         req.user._id,
@@ -209,7 +220,15 @@ const updateProfile = asynchandler(async(req,res,next)=>{
             $set:{
                 name,
                 mobile_no,
-                location
+                location,
+                ...(role ? { role } : {}),
+                ...(panNumber ? { panNumber } : {}),
+                ...(gstNumber ? { gstNumber } : {}),
+                ...(bankAccountNumber ? { bankAccountNumber } : {}),
+                ...(ifscCode ? { ifscCode } : {}),
+                ...(addressProof ? { addressProof } : {}),
+                ...(businessAddress ? { businessAddress } : {}),
+                ...(role === 'seller' ? { kycStatus: 'approved' } : {})
             }
         },
         {

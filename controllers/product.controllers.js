@@ -1,4 +1,5 @@
 import Product from "../models/product.models.js"
+import Category from "../models/category.models.js"
 
 import apierror from "../utils/apierror.js"
 import apiresponse from "../utils/apiresponse.js"
@@ -53,10 +54,23 @@ const updateProduct = asynchandler(async(req,res,next)=>{
         throw new apierror(403,"you can update only your product")
     }
 
+    const imagePaths = req.files?.images || []
+    let images = []
+    
+    if (imagePaths.length > 0) {
+        for(const file of imagePaths){
+            const uploadedImage = await cloudinary(file.path)
+            images.push(uploadedImage.url)
+        }
+    }
+
     const updatedProduct = await Product.findByIdAndUpdate(
         productId,
         {
-            $set:req.body
+            $set: {
+                ...req.body,
+                ...(images.length > 0 ? { images } : {})
+            }
         },
         {
             new:true
@@ -133,10 +147,23 @@ const searchProducts = asynchandler(async(req,res,next)=>{
         throw new apierror(400,"search keyword is required")
     }
 
+    // Find any categories that match the search keyword
+    const categories = await Category.find({
+        $or: [
+            {name: {$regex: keyword, $options: "i"}},
+            {slug: {$regex: keyword, $options: "i"}},
+            {description: {$regex: keyword, $options: "i"}}
+        ]
+    });
+
+    const categoryIds = categories.map(cat => cat._id);
+
+    // Retrieve products matching by title, description, or associated category ID
     const products = await Product.find({
         $or:[
             {title:{$regex:keyword,$options:"i"}},
-            {description:{$regex:keyword,$options:"i"}}
+            {description:{$regex:keyword,$options:"i"}},
+            {category:{$in:categoryIds}}
         ]
     })
 
