@@ -1,8 +1,30 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Github, Twitter, Instagram, Layers } from 'lucide-react';
+import { useCategories } from '../../hooks/useCategories';
 
 export const Footer: React.FC = () => {
+  const { categories } = useCategories();
+  const [email, setEmail] = useState('');
+  const [subscribed, setSubscribed] = useState(() => {
+    return localStorage.getItem('newsletter_subscribed') === 'true';
+  });
+  const [subscribedEmail, setSubscribedEmail] = useState(() => {
+    return localStorage.getItem('newsletter_email') || '';
+  });
+
+  const handleSubscribe = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) return;
+
+    localStorage.setItem('newsletter_subscribed', 'true');
+    localStorage.setItem('newsletter_email', trimmedEmail);
+    setSubscribed(true);
+    setSubscribedEmail(trimmedEmail);
+    setEmail('');
+  };
+
   return (
     <footer className="w-full bg-slate-950 border-t border-white/5 pt-16 pb-8 mt-auto">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -36,18 +58,27 @@ export const Footer: React.FC = () => {
           <div>
             <h4 className="text-xs font-bold uppercase text-white tracking-widest mb-5">Shop Categories</h4>
             <ul className="space-y-3 text-xs text-gray-500">
-              <li>
-                <Link to="/catalog" className="hover:text-purple-400 transition-colors">Wearables & Gadgets</Link>
-              </li>
-              <li>
-                <Link to="/catalog" className="hover:text-purple-400 transition-colors">Audio Equipment</Link>
-              </li>
-              <li>
-                <Link to="/catalog" className="hover:text-purple-400 transition-colors">Smart Living</Link>
-              </li>
-              <li>
-                <Link to="/catalog" className="hover:text-purple-400 transition-colors">Digital Assets</Link>
-              </li>
+              {categories.length > 0 ? (
+                categories.map((cat) => (
+                  <li key={cat._id}>
+                    <Link to={`/catalog?category=${cat._id}`} className="hover:text-purple-400 transition-colors">
+                      {cat.name}
+                    </Link>
+                  </li>
+                ))
+              ) : (
+                <>
+                  <li>
+                    <Link to="/catalog" className="hover:text-purple-400 transition-colors">Wearables</Link>
+                  </li>
+                  <li>
+                    <Link to="/catalog" className="hover:text-purple-400 transition-colors">Audio Gear</Link>
+                  </li>
+                  <li>
+                    <Link to="/catalog" className="hover:text-purple-400 transition-colors">Smart Living</Link>
+                  </li>
+                </>
+              )}
             </ul>
           </div>
 
@@ -76,19 +107,41 @@ export const Footer: React.FC = () => {
             <p className="text-xs text-gray-500 leading-normal">
               Subscribe to unlock early drops, product updates, and interactive design releases.
             </p>
-            <form onSubmit={(e) => e.preventDefault()} className="flex gap-2">
-              <input
-                type="email"
-                placeholder="Enter email address"
-                className="flex-grow px-4 py-2.5 rounded-lg bg-slate-900 border border-white/5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-purple-500"
-              />
-              <button
-                type="submit"
-                className="px-4 py-2.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs uppercase cursor-pointer"
-              >
-                Join
-              </button>
-            </form>
+            {subscribed ? (
+              <div className="space-y-3">
+                <div className="p-3.5 rounded-xl bg-purple-950/20 border border-purple-500/20 text-purple-400 text-xs font-medium">
+                  ✓ Thank you! {subscribedEmail} has been subscribed to our newsletter.
+                </div>
+                <button
+                  onClick={() => {
+                    localStorage.removeItem('newsletter_subscribed');
+                    localStorage.removeItem('newsletter_email');
+                    setSubscribed(false);
+                    setSubscribedEmail('');
+                  }}
+                  className="text-[10px] text-gray-500 hover:text-purple-400 transition-colors cursor-pointer underline"
+                >
+                  Change email or unsubscribe
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleSubscribe} className="flex gap-2">
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter email address"
+                  className="flex-grow px-4 py-2.5 rounded-lg bg-slate-900 border border-white/5 text-xs text-white placeholder-gray-650 focus:outline-none focus:border-purple-500"
+                />
+                <button
+                  type="submit"
+                  className="px-4 py-2.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs uppercase cursor-pointer"
+                >
+                  Join
+                </button>
+              </form>
+            )}
           </div>
 
         </div>

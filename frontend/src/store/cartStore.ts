@@ -77,7 +77,7 @@ export const useCartStore = create<CartState>((set, get) => {
           const validItems = (cartData.items || []).filter((item: any) => item.product !== null);
           set({
             items: validItems,
-            totalPrice: cartData.totalPrice || 0,
+            totalPrice: cartData.totalPrice ?? cartData.totalprices ?? 0,
             isLoading: false,
           });
         } else {

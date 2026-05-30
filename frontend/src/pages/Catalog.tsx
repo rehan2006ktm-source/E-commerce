@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useProducts } from '../hooks/useProducts';
 import { useCategories } from '../hooks/useCategories';
 import Card from '../components/common/Card';
@@ -7,17 +8,35 @@ import { Search, SlidersHorizontal, RotateCcw, Star } from 'lucide-react';
 export const Catalog: React.FC = () => {
   const { products, isLoading, searchProducts } = useProducts();
   const { categories, isLoading: isCategoriesLoading } = useCategories();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const categoryParam = searchParams.get('category');
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>(categoryParam || 'all');
   const [maxPrice, setMaxPrice] = useState<number>(3000);
   const [minRating, setMinRating] = useState<number>(0);
   const [showFiltersMobile, setShowFiltersMobile] = useState(false);
+
+  // Sync selectedCategory when categoryParam changes (e.g., footer link clicked)
+  useEffect(() => {
+    setSelectedCategory(categoryParam || 'all');
+  }, [categoryParam]);
 
   // Trigger search on term change (with debouncing, or just instant submit)
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     searchProducts(searchTerm);
+  };
+
+  const handleCategoryChange = (catId: string) => {
+    setSelectedCategory(catId);
+    const newParams = new URLSearchParams(searchParams);
+    if (catId === 'all') {
+      newParams.delete('category');
+    } else {
+      newParams.set('category', catId);
+    }
+    setSearchParams(newParams);
   };
 
   // Find price bounds from current product list
@@ -37,7 +56,11 @@ export const Catalog: React.FC = () => {
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
       // 1. Category Filter
-      if (selectedCategory !== 'all' && product.category !== selectedCategory) {
+      const productCategoryId = typeof product.category === 'object' && product.category !== null
+        ? (product.category as any)._id
+        : product.category;
+
+      if (selectedCategory !== 'all' && productCategoryId !== selectedCategory) {
         return false;
       }
       // 2. Price Filter
@@ -58,6 +81,7 @@ export const Catalog: React.FC = () => {
     setMinRating(0);
     setMaxPrice(maxProductPrice);
     searchProducts(''); // Clear search
+    setSearchParams({}); // Clear URL params
   };
 
   return (
@@ -125,7 +149,7 @@ export const Catalog: React.FC = () => {
                       type="radio"
                       name="category"
                       checked={selectedCategory === 'all'}
-                      onChange={() => setSelectedCategory('all')}
+                      onChange={() => handleCategoryChange('all')}
                       className="accent-purple-500 w-4 h-4 cursor-pointer"
                     />
                     <span>All Products</span>
@@ -136,7 +160,7 @@ export const Catalog: React.FC = () => {
                         type="radio"
                         name="category"
                         checked={selectedCategory === cat._id}
-                        onChange={() => setSelectedCategory(cat._id)}
+                        onChange={() => handleCategoryChange(cat._id)}
                         className="accent-purple-500 w-4 h-4 cursor-pointer"
                       />
                       <span>{cat.name}</span>

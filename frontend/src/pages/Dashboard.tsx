@@ -1,5 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import { useChatStore } from '../store/chatStore';
+import { useReviewStore } from '../store/reviewStore';
 import { useCategories } from '../hooks/useCategories';
 import api from '../config/axios';
 import Button from '../components/common/Button';
@@ -17,7 +20,8 @@ import {
   Edit,
   Sparkles,
   ShoppingBag,
-  TrendingUp
+  TrendingUp,
+  MessageSquare
 } from 'lucide-react';
 
 interface OrderItem {
@@ -57,6 +61,7 @@ interface SellerProduct {
 }
 
 export const Dashboard: React.FC = () => {
+  const navigate = useNavigate();
   const { user, updateProfile, isLoading: isAuthLoading } = useAuthStore();
   const { categories } = useCategories();
 
@@ -66,6 +71,65 @@ export const Dashboard: React.FC = () => {
   // Customer tabs: 'orders' | 'profile'
   // Seller tabs: 'inventory' | 'seller-orders' | 'profile'
   const [activeTab, setActiveTab] = useState<string>(isSeller ? 'inventory' : 'orders');
+
+  const getOrderTotal = (order: OrderDetails) => {
+    if (order.price && order.price > 0) {
+      return order.price;
+    }
+    return (order.products || []).reduce((sum, item) => {
+      const prodPrice = item.product && typeof item.product === 'object' ? (item.product as any).price : 0;
+      return sum + (prodPrice * (item.quantity || 1));
+    }, 0);
+  };
+
+  const {
+    inbox,
+    activeConversation,
+    activeParticipant,
+    fetchInbox,
+    fetchConversation,
+    sendMessage,
+    setActiveParticipant: setChatActiveParticipant,
+    isLoading: isChatLoading
+  } = useChatStore();
+
+  const [dashboardChatText, setDashboardChatText] = useState('');
+  const dashboardChatBottomRef = useRef<HTMLDivElement>(null);
+
+  const handleContactSeller = (sellerId: string | undefined, sellerName: string) => {
+    if (!sellerId) return;
+    setChatActiveParticipant({
+      _id: sellerId,
+      name: sellerName || 'Product Seller',
+    });
+    setActiveTab('chats');
+  };
+
+  useEffect(() => {
+    if (activeTab === 'chats') {
+      fetchInbox();
+    }
+  }, [activeTab, fetchInbox]);
+
+  useEffect(() => {
+    if (activeParticipant && activeTab === 'chats') {
+      fetchConversation(activeParticipant._id);
+    }
+  }, [activeParticipant, activeTab, fetchConversation]);
+
+  useEffect(() => {
+    if (dashboardChatBottomRef.current) {
+      dashboardChatBottomRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [activeConversation, activeTab]);
+
+  const { myReviews, fetchMyReviews, deleteReview, isLoading: isReviewsLoading } = useReviewStore();
+
+  useEffect(() => {
+    if (activeTab === 'reviews' && !isSeller) {
+      fetchMyReviews();
+    }
+  }, [activeTab, isSeller, fetchMyReviews]);
 
   // Customer profile fields
   const [name, setName] = useState(user?.name || '');
@@ -162,10 +226,16 @@ export const Dashboard: React.FC = () => {
     if (isSeller) {
       fetchSellerProducts();
       fetchSellerOrders();
+      if (activeTab === 'orders') {
+        setActiveTab('inventory');
+      }
     } else {
       fetchMyOrders();
+      if (activeTab === 'inventory' || activeTab === 'seller-orders') {
+        setActiveTab('orders');
+      }
     }
-  }, [isSeller]);
+  }, [isSeller, activeTab]);
 
   // Handle profile save
   const handleUpdateProfile = async (e: React.FormEvent) => {
@@ -387,6 +457,28 @@ export const Dashboard: React.FC = () => {
                   <Package size={16} />
                   <span>My Orders</span>
                 </button>
+                <button
+                  onClick={() => setActiveTab('reviews')}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                    activeTab === 'reviews'
+                      ? 'bg-purple-600 text-white'
+                      : 'text-gray-400 hover:bg-slate-900/60 hover:text-white'
+                  }`}
+                >
+                  <Sparkles size={16} />
+                  <span>My Reviews</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('chats')}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                    activeTab === 'chats'
+                      ? 'bg-purple-600 text-white'
+                      : 'text-gray-400 hover:bg-slate-900/60 hover:text-white'
+                  }`}
+                >
+                  <Mail size={16} />
+                  <span>My Chats</span>
+                </button>
               </>
             ) : (
               <>
@@ -414,6 +506,17 @@ export const Dashboard: React.FC = () => {
                 >
                   <ShoppingBag size={16} />
                   <span>Manage Sales</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('chats')}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                    activeTab === 'chats'
+                      ? 'bg-purple-600 text-white'
+                      : 'text-gray-400 hover:bg-slate-900/60 hover:text-white'
+                  }`}
+                >
+                  <Mail size={16} />
+                  <span>My Chats</span>
                 </button>
               </>
             )}
@@ -480,7 +583,7 @@ export const Dashboard: React.FC = () => {
                           <React.Fragment key={order._id}>
                             {order.products.map((item, idx) => {
                               const isProductObj = item.product && typeof item.product === 'object';
-                              const prod = isProductObj ? (item.product as { _id: string; title: string; price: number; images?: string[]; }) : null;
+                              const prod = isProductObj ? (item.product as { _id: string; title: string; price: number; images?: string[]; owner?: string; }) : null;
                               const title = prod ? prod.title : 'Premium Item';
                               const price = prod ? prod.price : 0;
                               const image = prod && prod.images?.[0] 
@@ -492,9 +595,26 @@ export const Dashboard: React.FC = () => {
                               return (
                                 <tr key={`${order._id}-${prod?._id || idx}`} className="hover:bg-white/[0.02] transition-colors">
                                   {/* Product (Image + Title) */}
-                                  <td className="py-4 px-6 flex items-center gap-3">
+                                  <td 
+                                    className={`py-4 px-6 flex items-center gap-3 ${prod ? 'cursor-pointer hover:opacity-85' : ''}`}
+                                    onClick={() => prod && navigate(`/product/${prod._id}`)}
+                                  >
                                     <img src={image} alt="" className="w-12 h-12 rounded-xl object-cover border border-white/5 shrink-0" />
-                                    <span className="font-semibold text-gray-200 line-clamp-1 max-w-[200px]">{title}</span>
+                                    <div className="flex flex-col">
+                                      <span className={`font-semibold line-clamp-1 max-w-[200px] ${prod ? 'text-purple-400 hover:underline' : 'text-gray-200'}`}>{title}</span>
+                                      {prod && (
+                                        <button 
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleContactSeller(item.productOwner || prod.owner, 'Seller of ' + title);
+                                          }}
+                                          className="text-[10px] text-purple-400 hover:text-purple-300 mt-1 flex items-center gap-1 cursor-pointer font-medium self-start bg-purple-950/20 border border-purple-500/10 px-2 py-0.5 rounded-md"
+                                        >
+                                          <MessageSquare size={10} />
+                                          Chat Seller
+                                        </button>
+                                      )}
+                                    </div>
                                   </td>
                                   
                                   {/* Qty */}
@@ -507,7 +627,7 @@ export const Dashboard: React.FC = () => {
                                   
                                   {/* Grand Total (Only show once on the first item row of the order) */}
                                   <td className="py-4 px-4 text-right font-mono font-extrabold text-purple-400">
-                                    {idx === 0 ? `₹${order.price.toLocaleString('en-IN')}` : ''}
+                                    {idx === 0 ? `₹${getOrderTotal(order).toLocaleString('en-IN')}` : ''}
                                   </td>
                                   
                                   {/* Date */}
@@ -559,7 +679,7 @@ export const Dashboard: React.FC = () => {
                           <div className="space-y-3">
                             {order.products?.map((item) => {
                               const isProductObj = item.product && typeof item.product === 'object';
-                              const prod = isProductObj ? (item.product as { _id: string; title: string; price: number; images?: string[]; }) : null;
+                              const prod = isProductObj ? (item.product as { _id: string; title: string; price: number; images?: string[]; owner?: string; }) : null;
                               const title = prod ? prod.title : 'Premium Item';
                               const price = prod ? prod.price : 0;
                               const image = prod && prod.images?.[0] 
@@ -567,14 +687,30 @@ export const Dashboard: React.FC = () => {
                                 : 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200';
                               
                               return (
-                                <div key={item._id || (prod ? prod._id : Math.random().toString())} className="flex items-center justify-between text-xs text-gray-300">
+                                <div 
+                                  key={item._id || (prod ? prod._id : Math.random().toString())} 
+                                  className={`flex items-center justify-between text-xs text-gray-300 ${prod ? 'cursor-pointer hover:opacity-85' : ''}`}
+                                  onClick={() => prod && navigate(`/product/${prod._id}`)}
+                                >
                                   <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-white/5 bg-slate-900">
                                       <img src={image} alt="" className="w-full h-full object-cover" />
                                     </div>
                                     <div>
-                                      <span className="font-semibold block leading-tight text-gray-200 line-clamp-1 max-w-[155px]">{title}</span>
+                                      <span className={`font-semibold block leading-tight line-clamp-1 max-w-[155px] ${prod ? 'text-purple-400 hover:underline' : 'text-gray-200'}`}>{title}</span>
                                       <span className="text-[10px] text-gray-500 block mt-0.5">Qty: {item.quantity} × ₹{price.toLocaleString('en-IN')}</span>
+                                      {prod && (
+                                        <button 
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleContactSeller(item.productOwner || prod.owner, 'Seller of ' + title);
+                                          }}
+                                          className="text-[9px] text-purple-400 hover:text-purple-300 mt-1.5 flex items-center gap-1 cursor-pointer font-medium bg-purple-950/20 border border-purple-500/10 px-1.5 py-0.5 rounded"
+                                        >
+                                          <MessageSquare size={8} />
+                                          Chat Seller
+                                        </button>
+                                      )}
                                     </div>
                                   </div>
                                   <span className="font-bold text-gray-300 font-mono">
@@ -601,7 +737,7 @@ export const Dashboard: React.FC = () => {
                           <div className="p-3 rounded-xl bg-purple-950/15 border border-purple-500/10 flex justify-between items-center mt-2">
                             <span className="text-[9px] uppercase font-bold text-gray-400 tracking-wider">Grand Total</span>
                             <span className="text-xs font-extrabold text-white font-mono">
-                              ₹{order.price.toLocaleString('en-IN')}
+                              ₹{getOrderTotal(order).toLocaleString('en-IN')}
                             </span>
                           </div>
 
@@ -907,7 +1043,7 @@ export const Dashboard: React.FC = () => {
                           <div className="flex items-center gap-4">
                             <div className="text-right">
                               <span className="text-[10px] text-gray-500 uppercase font-bold block">Assigned Total</span>
-                              <span className="text-sm font-bold text-white">${order.price.toLocaleString()}</span>
+                              <span className="text-sm font-bold text-white">${getOrderTotal(order).toLocaleString()}</span>
                             </div>
                             {getStatusBadge(order.status)}
                           </div>
@@ -1151,6 +1287,231 @@ export const Dashboard: React.FC = () => {
                   </form>
                 </>
               )}
+            </div>
+          )}
+
+          {/* TAB: CUSTOMER REVIEWS LIST */}
+          {activeTab === 'reviews' && !isSeller && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center pb-4 border-b border-white/5">
+                <h2 className="text-lg font-bold text-white uppercase tracking-wider m-0">My Written Reviews</h2>
+                <Button variant="outline" size="sm" onClick={fetchMyReviews} isLoading={isReviewsLoading}>
+                  Sync Reviews
+                </Button>
+              </div>
+
+              {isReviewsLoading && myReviews.length === 0 ? (
+                <div className="py-24 text-center space-y-4">
+                  <div className="w-10 h-10 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto animate-pulse"></div>
+                  <p className="text-sm text-gray-500">Retrieving your ratings...</p>
+                </div>
+              ) : myReviews.length === 0 ? (
+                <div className="text-center py-20 glass rounded-3xl space-y-4">
+                  <p className="text-sm text-gray-500">You haven't written any reviews yet.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {myReviews.map((rev) => {
+                    const isProductObj = rev.product_id && typeof rev.product_id === 'object';
+                    const prod = isProductObj ? (rev.product_id as { _id: string; title: string; images?: string[]; }) : null;
+                    const prodTitle = prod ? prod.title : 'Product';
+                    const image = prod && prod.images?.[0] 
+                      ? prod.images[0] 
+                      : 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200';
+
+                    return (
+                      <div key={rev._id} className="glass p-5 rounded-2xl border border-white/5 space-y-4 relative flex flex-col justify-between">
+                        <div className="space-y-3">
+                          {/* Product header */}
+                          <div 
+                            className="flex items-center gap-3 pb-3 border-b border-white/5 cursor-pointer hover:opacity-85"
+                            onClick={() => prod && navigate(`/product/${prod._id}`)}
+                          >
+                            <img src={image} alt="" className="w-10 h-10 rounded-lg object-cover border border-white/5 shrink-0" />
+                            <span className="font-bold text-xs text-purple-400 hover:underline line-clamp-1">{prodTitle}</span>
+                          </div>
+
+                          {/* Stars */}
+                          <div className="flex items-center gap-1">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <span 
+                                key={i} 
+                                className={`text-base leading-none ${i < rev.rating ? 'text-amber-400' : 'text-gray-700'}`}
+                              >
+                                ★
+                              </span>
+                            ))}
+                          </div>
+
+                          {/* Comment */}
+                          <p className="text-xs text-gray-300 leading-relaxed italic m-0">
+                            "{rev.comment || 'No comment provided.'}"
+                          </p>
+                        </div>
+
+                        {/* Date and actions */}
+                        <div className="pt-3 border-t border-white/5 flex justify-between items-center text-[10px] text-gray-500">
+                          <span>Reviewed on {new Date(rev.createdAt).toLocaleDateString()}</span>
+                          <button
+                            onClick={async () => {
+                              if (confirm('Are you sure you want to delete this review?')) {
+                                try {
+                                  await deleteReview(rev._id);
+                                } catch {}
+                              }
+                            }}
+                            className="px-2.5 py-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-md transition-all cursor-pointer font-bold uppercase border border-red-500/10 hover:border-red-500/25"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB: MY CHAT HISTORY INBOX */}
+          {activeTab === 'chats' && (
+            <div className="glass p-6 rounded-3xl space-y-6">
+              <div className="pb-4 border-b border-white/5 flex justify-between items-center">
+                <div>
+                  <h2 className="text-lg font-bold text-white uppercase tracking-wider m-0">Chat History</h2>
+                  <p className="text-xs text-gray-500 mt-1">Direct message logs with sellers and buyers.</p>
+                </div>
+                <Button variant="outline" size="sm" onClick={fetchInbox}>
+                  Sync Messages
+                </Button>
+              </div>
+
+              {/* Messaging Split Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-[500px]">
+                
+                {/* INBOX PANEL (Left column) */}
+                <div className="md:col-span-1 border-r border-white/5 pr-4 flex flex-col h-full overflow-y-auto space-y-3">
+                  <h4 className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Conversations</h4>
+                  
+                  {isChatLoading && inbox.length === 0 ? (
+                    <div className="py-12 text-center text-xs text-gray-550 animate-pulse">Loading inbox...</div>
+                  ) : inbox.length === 0 ? (
+                    <div className="py-20 text-center text-xs text-gray-500">No message history found.</div>
+                  ) : (
+                    inbox.map((item) => {
+                      const active = activeParticipant?._id === item.participant._id;
+                      return (
+                        <button
+                          key={item.participant._id}
+                          onClick={() => setChatActiveParticipant(item.participant)}
+                          className={`w-full text-left p-3 rounded-xl border flex gap-3 transition-all cursor-pointer ${
+                            active
+                              ? 'border-purple-500 bg-purple-950/20 text-purple-300'
+                              : 'border-transparent hover:bg-slate-900/40 text-gray-400 hover:text-white'
+                          }`}
+                        >
+                          <div className="w-8 h-8 rounded-full bg-purple-900 overflow-hidden shrink-0 flex items-center justify-center font-bold text-white text-xs border border-purple-500/25">
+                            {item.participant.avatar ? (
+                              <img src={item.participant.avatar} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              item.participant.name.slice(0, 2).toUpperCase()
+                            )}
+                          </div>
+                          <div className="flex-grow min-w-0">
+                            <div className="flex justify-between items-baseline">
+                              <span className="font-semibold text-xs text-gray-200 truncate">{item.participant.name}</span>
+                              {item.unreadCount > 0 && (
+                                <span className="bg-purple-600 text-white font-bold text-[8px] px-1.5 py-0.5 rounded-full shrink-0">
+                                  {item.unreadCount}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-gray-500 truncate mt-0.5">{item.lastMessage.text}</p>
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* MESSAGES FEED PANEL (Right column) */}
+                <div className="md:col-span-2 flex flex-col h-full justify-between">
+                  {activeParticipant ? (
+                    <>
+                      {/* Active participant header */}
+                      <div className="pb-3 border-b border-white/5 flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-purple-900 overflow-hidden shrink-0 flex items-center justify-center font-bold text-white text-xs">
+                          {activeParticipant.avatar ? (
+                            <img src={activeParticipant.avatar} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            activeParticipant.name.slice(0, 2).toUpperCase()
+                          )}
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-xs text-white m-0">{activeParticipant.name}</h4>
+                          <span className="text-[9px] text-purple-400 block uppercase font-mono tracking-wider font-semibold">Active Thread</span>
+                        </div>
+                      </div>
+
+                      {/* Messages loop */}
+                      <div className="flex-grow overflow-y-auto py-4 space-y-3 px-2" style={{ maxHeight: '350px' }}>
+                        {activeConversation.map((msg) => {
+                          const isMe = msg.sender?._id === user?._id;
+                          return (
+                            <div key={msg._id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                              <div className={`relative max-w-[80%] p-3 rounded-xl text-xs leading-normal ${
+                                isMe
+                                  ? 'bg-purple-650 text-white rounded-tr-none shadow-[0_0_10px_rgba(168,85,247,0.15)]'
+                                  : 'bg-slate-900 text-gray-350 rounded-tl-none border border-white/5'
+                              }`}>
+                                <p className="m-0 break-words">{msg.text}</p>
+                                <span className="text-[8px] text-gray-500 block mt-1 text-right font-mono">
+                                  {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        <div ref={dashboardChatBottomRef} />
+                      </div>
+
+                      {/* Send Form */}
+                      <form 
+                        onSubmit={async (e) => {
+                          e.preventDefault();
+                          if (!dashboardChatText.trim() || !activeParticipant) return;
+                          try {
+                            await sendMessage(activeParticipant._id, dashboardChatText);
+                            setDashboardChatText('');
+                          } catch {}
+                        }}
+                        className="pt-3 border-t border-white/5 flex gap-2"
+                      >
+                        <input
+                          type="text"
+                          required
+                          value={dashboardChatText}
+                          onChange={(e) => setDashboardChatText(e.target.value)}
+                          placeholder="Type your message..."
+                          className="flex-grow px-3 py-2 rounded-xl bg-slate-900 border border-white/5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                        />
+                        <button
+                          type="submit"
+                          className="px-4 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl flex items-center justify-center transition-colors cursor-pointer"
+                        >
+                          Send
+                        </button>
+                      </form>
+                    </>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center space-y-2 text-center">
+                      <Mail size={32} className="text-gray-700" />
+                      <p className="text-xs text-gray-500">Select a conversation thread to read and write messages.</p>
+                    </div>
+                  )}
+                </div>
+
+              </div>
             </div>
           )}
         </div>

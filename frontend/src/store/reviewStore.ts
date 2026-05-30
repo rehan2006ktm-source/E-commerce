@@ -6,6 +6,7 @@ export interface ReviewDetails {
   _id: string;
   user: UserProfile | string;
   product: string;
+  product_id?: any;
   rating: number;
   comment?: string;
   createdAt: string;
