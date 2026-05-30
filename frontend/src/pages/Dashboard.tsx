@@ -249,14 +249,11 @@ export const Dashboard: React.FC = () => {
 
     try {
       if (editProductId) {
-        // Edit existing product
-        // Note: For simple implementation we PATCH fields. If files are changing, handle accordingly.
-        await api.patch(`/products/${editProductId}`, {
-          title: productTitle,
-          description: productDesc,
-          price: Number(productPrice),
-          stock: Number(productStock),
-          category: productCategory,
+        // Edit existing product with form data (in case images are updated)
+        await api.patch(`/products/${editProductId}`, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
         });
       } else {
         // Add new product
@@ -639,21 +636,19 @@ export const Dashboard: React.FC = () => {
                         />
                       </div>
 
-                      {/* Images Selection (Omit if Editing to keep it simple) */}
-                      {!editProductId && (
-                        <div className="space-y-2 sm:col-span-2">
-                          <label className="text-xs font-bold uppercase text-gray-400 tracking-wider block">
-                            Product Images (Up to 5 images)
-                          </label>
-                          <input
-                            type="file"
-                            multiple
-                            accept="image/*"
-                            onChange={(e) => setProductImages(e.target.files)}
-                            className="w-full file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:uppercase file:bg-purple-900/20 file:text-purple-400 hover:file:bg-purple-900/30 text-xs text-gray-500 bg-slate-900 border border-white/5 p-2 rounded-xl cursor-pointer"
-                          />
-                        </div>
-                      )}
+                      {/* Images Selection */}
+                      <div className="space-y-2 sm:col-span-2">
+                        <label className="text-xs font-bold uppercase text-gray-400 tracking-wider block">
+                          Product Images (Optional on edit, up to 5 images)
+                        </label>
+                        <input
+                          type="file"
+                          multiple
+                          accept="image/*"
+                          onChange={(e) => setProductImages(e.target.files)}
+                          className="w-full file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:uppercase file:bg-purple-900/20 file:text-purple-400 hover:file:bg-purple-900/30 text-xs text-gray-500 bg-slate-900 border border-white/5 p-2 rounded-xl cursor-pointer"
+                        />
+                      </div>
 
                     </div>
 
