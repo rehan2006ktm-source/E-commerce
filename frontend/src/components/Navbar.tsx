@@ -2,12 +2,19 @@ import { Link } from "@tanstack/react-router";
 import { ShoppingBag, User, Search, Menu, X } from "lucide-react";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export function Navbar() {
   const { count, open } = useCart();
   const { user } = useAuth();
   const [mobile, setMobile] = useState(false);
+
+  // #region agent log
+  useEffect(() => {
+    const cartBtn = document.querySelector('button[aria-label="Cart"]');
+    fetch('http://127.0.0.1:7816/ingest/d5ea4e40-392a-4df8-8cba-5ae32091630d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b3f2db'},body:JSON.stringify({sessionId:'b3f2db',runId:'pre-fix',hypothesisId:'A',location:'Navbar.tsx:useEffect',message:'hydration extension attrs check',data:{hasFdProcessedId:cartBtn?.hasAttribute('fdprocessedid'),fdProcessedId:cartBtn?.getAttribute('fdprocessedid')??null},timestamp:Date.now()})}).catch(()=>{});
+  }, []);
+  // #endregion
 
   const links = [
     { to: "/", label: "Home" },

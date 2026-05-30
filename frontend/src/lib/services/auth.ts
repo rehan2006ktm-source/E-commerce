@@ -3,6 +3,9 @@ import type { User } from "../types";
 
 export const authService = {
   login: async (email: string, password: string): Promise<User> => {
+    // #region agent log
+    fetch('http://127.0.0.1:7816/ingest/d5ea4e40-392a-4df8-8cba-5ae32091630d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b3f2db'},body:JSON.stringify({sessionId:'b3f2db',runId:'pre-fix',hypothesisId:'E',location:'auth.ts:login',message:'login request start',data:{apiBase:import.meta.env.VITE_API_URL??'default'},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     const { data } = await api.post("/users/login", { email, password });
     const d = unwrap(data) as { user: User; accessToken: string };
     if (d.accessToken) tokenStore.set(d.accessToken);

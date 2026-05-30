@@ -128,6 +128,10 @@ const loginuser=asynchandler(async(req,res,next)=>{
         throw new apierror(404,"user not found")
     }
 
+    // #region agent log
+    fetch('http://127.0.0.1:7816/ingest/d5ea4e40-392a-4df8-8cba-5ae32091630d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b3f2db'},body:JSON.stringify({sessionId:'b3f2db',runId:'pre-fix',hypothesisId:'B',location:'user.controllers.js:loginuser',message:'login user loaded',data:{hasIsPasswordCorrect:typeof user.isPasswordCorrect==='function',hasGenerateAccessToken:typeof user.generateAccessToken==='function',emailProvided:!!email},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+
     const isPasswordCorrect = await user.isPasswordCorrect(password)
 
     if(!isPasswordCorrect){
@@ -135,6 +139,10 @@ const loginuser=asynchandler(async(req,res,next)=>{
     }
 
     const {accessToken,refreshToken} =await generateAccessAndRefreshToken(user._id)
+
+    // #region agent log
+    fetch('http://127.0.0.1:7816/ingest/d5ea4e40-392a-4df8-8cba-5ae32091630d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b3f2db'},body:JSON.stringify({sessionId:'b3f2db',runId:'pre-fix',hypothesisId:'C',location:'user.controllers.js:loginuser',message:'login tokens generated',data:{hasAccessToken:!!accessToken,hasRefreshToken:!!refreshToken},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
 
     const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
 
@@ -181,7 +189,7 @@ const logout=asynchandler(async(req,res,next)=>{
    .json(new apiresponse(200,{},"User logged out"))
 
 
-
+``
    
 
 })

@@ -1,6 +1,6 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
-const RENDER_API_ORIGIN = "https://e-commerce-2-zpg7.onrender.com";
+const LOCAL_API_ORIGIN = "http://localhost:5000";
 
 export default defineConfig({
   vite: {
@@ -8,9 +8,9 @@ export default defineConfig({
       port: 5173,
       proxy: {
         "/api": {
-          target: RENDER_API_ORIGIN,
+          target: LOCAL_API_ORIGIN,
           changeOrigin: true,
-          secure: true,
+          secure: false,
         },
       },
     },

@@ -60,10 +60,11 @@ const userSchema=new mongoose.Schema({
         type:String,
         enum:["pending","approved","rejected"],
         default:"pending"
+    },
+    refreshToken:{
+        type:String
     }
 },{timestamps:true})
-
-const User=mongoose.model("User",userSchema)
 
 userSchema.pre("save",async function(next){
     if(!this.isModified("password")) return next()
@@ -100,6 +101,7 @@ userSchema.methods.generateRefreshToken=function(){
     )
 }
 
+const User=mongoose.model("User",userSchema)
+
 export default User
 
-const rehan =hvjvhjv;
