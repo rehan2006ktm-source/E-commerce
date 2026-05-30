@@ -73,6 +73,15 @@ export const Dashboard: React.FC = () => {
   const [profileSuccess, setProfileSuccess] = useState<string | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
 
+  // Seller Upgrade fields
+  const [showUpgradeForm, setShowUpgradeForm] = useState(false);
+  const [upgradePan, setUpgradePan] = useState('');
+  const [upgradeGst, setUpgradeGst] = useState('');
+  const [upgradeBankAccount, setUpgradeBankAccount] = useState('');
+  const [upgradeIfsc, setUpgradeIfsc] = useState('');
+  const [upgradeAddressProof, setUpgradeAddressProof] = useState('');
+  const [upgradeBusinessAddress, setUpgradeBusinessAddress] = useState('');
+
   // Customer orders
   const [orders, setOrders] = useState<OrderDetails[]>([]);
   const [isOrdersLoading, setIsOrdersLoading] = useState(false);
@@ -168,6 +177,35 @@ export const Dashboard: React.FC = () => {
       setProfileSuccess('Profile credentials updated successfully!');
     } catch (err: any) {
       setProfileError(err.message || 'Failed to save updates.');
+    }
+  };
+
+  // Customer: Upgrade to Seller
+  const handleUpgradeToSeller = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProfileSuccess(null);
+    setProfileError(null);
+    if (!upgradePan || !upgradeGst || !upgradeBankAccount || !upgradeIfsc || !upgradeAddressProof || !upgradeBusinessAddress) {
+      setProfileError('All business registration fields are required to upgrade.');
+      return;
+    }
+    try {
+      await updateProfile({
+        name,
+        location,
+        role: 'seller',
+        panNumber: upgradePan,
+        gstNumber: upgradeGst,
+        bankAccountNumber: Number(upgradeBankAccount),
+        ifscCode: upgradeIfsc,
+        addressProof: upgradeAddressProof,
+        businessAddress: upgradeBusinessAddress
+      } as any);
+      setProfileSuccess('Account upgraded to seller successfully! Re-indexing dashboard panels...');
+      setActiveTab('inventory'); // Switch active tab
+      setShowUpgradeForm(false);
+    } catch (err: any) {
+      setProfileError(err.message || 'Upgrade operation failed.');
     }
   };
 
@@ -821,65 +859,189 @@ export const Dashboard: React.FC = () => {
           {activeTab === 'profile' && (
             <div className="glass p-8 rounded-3xl space-y-6">
               
-              <div className="pb-4 border-b border-white/5">
-                <h2 className="text-lg font-bold text-white uppercase tracking-wider m-0">Profile Information</h2>
-                <p className="text-xs text-gray-500 mt-1">Keep your display name and shipping/business location accurate.</p>
-              </div>
-
-              {profileSuccess && (
-                <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-xs text-emerald-400 font-medium">
-                  {profileSuccess}
-                </div>
-              )}
-
-              {profileError && (
-                <div className="p-4 rounded-xl bg-red-650/10 border border-red-500/25 text-xs text-red-400 font-medium">
-                  {profileError}
-                </div>
-              )}
-
-              <form onSubmit={handleUpdateProfile} className="space-y-6">
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  
-                  {/* Name */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase text-gray-400 tracking-wider block">Profile Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-white/5 text-sm text-white focus:outline-none focus:border-purple-500"
-                    />
+              {!showUpgradeForm ? (
+                <>
+                  <div className="pb-4 border-b border-white/5">
+                    <h2 className="text-lg font-bold text-white uppercase tracking-wider m-0">Profile Information</h2>
+                    <p className="text-xs text-gray-500 mt-1">Keep your display name and shipping/business location accurate.</p>
                   </div>
 
-                  {/* Location */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase text-gray-400 tracking-wider block">Registered Location</label>
-                    <input
-                      type="text"
-                      value={location}
-                      onChange={(e) => setLocation(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-white/5 text-sm text-white focus:outline-none focus:border-purple-500"
-                    />
+                  {profileSuccess && (
+                    <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-xs text-emerald-400 font-medium">
+                      {profileSuccess}
+                    </div>
+                  )}
+
+                  {profileError && (
+                    <div className="p-4 rounded-xl bg-red-650/10 border border-red-500/25 text-xs text-red-400 font-medium">
+                      {profileError}
+                    </div>
+                  )}
+
+                  <form onSubmit={handleUpdateProfile} className="space-y-6">
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                      
+                      {/* Name */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase text-gray-400 tracking-wider block">Profile Name</label>
+                        <input
+                          type="text"
+                          required
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-white/5 text-sm text-white focus:outline-none focus:border-purple-500"
+                        />
+                      </div>
+
+                      {/* Location */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase text-gray-400 tracking-wider block">Registered Location</label>
+                        <input
+                          type="text"
+                          value={location}
+                          onChange={(e) => setLocation(e.target.value)}
+                          className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-white/5 text-sm text-white focus:outline-none focus:border-purple-500"
+                        />
+                      </div>
+
+                    </div>
+
+                    <div className="pt-4 flex justify-between items-center">
+                      {!isSeller && (
+                        <button
+                          type="button"
+                          onClick={() => setShowUpgradeForm(true)}
+                          className="text-xs font-bold text-purple-400 hover:text-purple-300 uppercase tracking-wider cursor-pointer"
+                        >
+                          Become a Seller
+                        </button>
+                      )}
+                      <Button type="submit" isLoading={isAuthLoading} className="ml-auto">
+                        Save Modifications
+                      </Button>
+                    </div>
+
+                  </form>
+                </>
+              ) : (
+                <>
+                  <div className="pb-4 border-b border-white/5 flex justify-between items-center">
+                    <div>
+                      <h2 className="text-lg font-bold text-white uppercase tracking-wider m-0">Become a Seller</h2>
+                      <p className="text-xs text-gray-500 mt-1">Provide your business identification details and credentials to upgrade.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowUpgradeForm(false)}
+                      className="px-4 py-2 border border-white/5 bg-slate-900 rounded-xl text-xs text-gray-400 hover:text-white transition-colors cursor-pointer"
+                    >
+                      Back to profile
+                    </button>
                   </div>
 
-                </div>
+                  {profileError && (
+                    <div className="p-4 rounded-xl bg-red-650/10 border border-red-500/25 text-xs text-red-400 font-medium">
+                      {profileError}
+                    </div>
+                  )}
 
-                <div className="pt-4 flex justify-end">
-                  <Button type="submit" isLoading={isAuthLoading}>
-                    Save Modifications
-                  </Button>
-                </div>
+                  <form onSubmit={handleUpgradeToSeller} className="space-y-6">
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                      
+                      {/* PAN */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase text-gray-400 tracking-wider block">PAN Identification</label>
+                        <input
+                          type="text"
+                          required
+                          value={upgradePan}
+                          onChange={(e) => setUpgradePan(e.target.value)}
+                          placeholder="ABCDE1234F"
+                          className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-white/5 text-sm text-white focus:outline-none focus:border-purple-500"
+                        />
+                      </div>
 
-              </form>
+                      {/* GST */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase text-gray-400 tracking-wider block">GST Registration</label>
+                        <input
+                          type="text"
+                          required
+                          value={upgradeGst}
+                          onChange={(e) => setUpgradeGst(e.target.value)}
+                          placeholder="29AAAAA1111A1Z1"
+                          className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-white/5 text-sm text-white focus:outline-none focus:border-purple-500"
+                        />
+                      </div>
 
+                      {/* Bank Account */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase text-gray-400 tracking-wider block">Bank Account Number</label>
+                        <input
+                          type="number"
+                          required
+                          value={upgradeBankAccount}
+                          onChange={(e) => setUpgradeBankAccount(e.target.value)}
+                          placeholder="123456789012"
+                          className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-white/5 text-sm text-white focus:outline-none focus:border-purple-500"
+                        />
+                      </div>
+
+                      {/* IFSC Code */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase text-gray-400 tracking-wider block">IFSC Bank Code</label>
+                        <input
+                          type="text"
+                          required
+                          value={upgradeIfsc}
+                          onChange={(e) => setUpgradeIfsc(e.target.value)}
+                          placeholder="SBIN0001234"
+                          className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-white/5 text-sm text-white focus:outline-none focus:border-purple-500"
+                        />
+                      </div>
+
+                      {/* Address Proof */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase text-gray-400 tracking-wider block">Address Proof Document URL</label>
+                        <input
+                          type="text"
+                          required
+                          value={upgradeAddressProof}
+                          onChange={(e) => setUpgradeAddressProof(e.target.value)}
+                          placeholder="https://drive.google.com/proof"
+                          className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-white/5 text-sm text-white focus:outline-none focus:border-purple-500"
+                        />
+                      </div>
+
+                      {/* Business Address */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase text-gray-400 tracking-wider block">Registered Business Address</label>
+                        <input
+                          type="text"
+                          required
+                          value={upgradeBusinessAddress}
+                          onChange={(e) => setUpgradeBusinessAddress(e.target.value)}
+                          placeholder="123 Store Lane, Trade Plaza"
+                          className="w-full px-4 py-3 rounded-xl bg-slate-900 border border-white/5 text-sm text-white focus:outline-none focus:border-purple-500"
+                        />
+                      </div>
+
+                    </div>
+
+                    <div className="pt-4 flex justify-end">
+                      <Button type="submit" isLoading={isAuthLoading}>
+                        Authorize Upgrade
+                      </Button>
+                    </div>
+
+                  </form>
+                </>
+              )}
             </div>
           )}
-
         </div>
-
       </div>
     </div>
   );
