@@ -1,18 +1,9 @@
-import { defineConfig } from "@lovable.dev/vite-tanstack-config";
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 
-const RENDER_API_ORIGIN = "https://e-commerce-2-zpg7.onrender.com";
-
+// https://vite.dev/config/
 export default defineConfig({
-  vite: {
-    server: {
-      port: 5173,
-      proxy: {
-        "/api": {
-          target: RENDER_API_ORIGIN,
-          changeOrigin: true,
-          secure: true,
-        },
-      },
-    },
-  },
-});
+  plugins: [react(), tailwindcss()],
+})
+
