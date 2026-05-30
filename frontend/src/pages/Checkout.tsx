@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
+import { usePaymentStore } from '../store/paymentStore';
 import api from '../config/axios';
 import Button from '../components/common/Button';
 import { MapPin, CreditCard, ShieldCheck, Truck, CheckCircle2, ChevronRight, ShoppingBag, Landmark } from 'lucide-react';
@@ -10,6 +11,7 @@ export const Checkout: React.FC = () => {
   const navigate = useNavigate();
   const { items, totalPrice, clearCart } = useCartStore();
   const { user } = useAuthStore();
+  const { createPayment } = usePaymentStore();
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1); // 1: Shipping, 2: Payment, 3: Review, 4: Success
   const [placedOrder, setPlacedOrder] = useState<any>(null);
@@ -57,7 +59,14 @@ export const Checkout: React.FC = () => {
         totalAmount: totalPrice,
       });
 
-      setPlacedOrder(response.data.data);
+      const order = response.data.data;
+      
+      // Call payments API to record transaction token
+      if (order && order._id) {
+        await createPayment(order._id, totalPrice, paymentMethod);
+      }
+
+      setPlacedOrder(order);
       // Clean up cart store locally
       await clearCart();
       setStep(4);

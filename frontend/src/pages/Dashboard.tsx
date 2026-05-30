@@ -461,49 +461,166 @@ export const Dashboard: React.FC = () => {
                 </div>
               ) : (
                 <div className="space-y-6">
-                  {orders.map((order) => {
-                    const isCancelable = ['placed', 'confirmed'].includes(order.status);
-                    return (
-                      <div key={order._id} className="glass p-6 rounded-3xl space-y-4">
-                        <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-white/5">
-                          <div>
-                            <span className="text-[10px] text-gray-500 uppercase font-mono block">Order ID</span>
-                            <span className="text-xs font-bold font-mono text-purple-400">{order._id}</span>
-                          </div>
-                          <div className="flex items-center gap-4">
-                            <div className="text-right">
-                              <span className="text-[10px] text-gray-500 uppercase font-bold block">Grand Total</span>
-                              <span className="text-sm font-bold text-white">${order.price.toLocaleString()}</span>
+                  {/* DESKTOP VIEW: Multi-Column Table Layout (visible on md+) */}
+                  <div className="hidden md:block overflow-hidden rounded-2xl border border-white/5 bg-slate-950/40 backdrop-blur-md">
+                    <table className="w-full border-collapse text-left text-xs text-gray-300">
+                      <thead className="bg-slate-900/60 text-[10px] uppercase font-bold tracking-wider text-gray-500 border-b border-white/5">
+                        <tr>
+                          <th className="py-4 px-6">Product Details</th>
+                          <th className="py-4 px-4 text-center">Qty</th>
+                          <th className="py-4 px-4 text-right">Price</th>
+                          <th className="py-4 px-4 text-right">Grand Total</th>
+                          <th className="py-4 px-6 text-center">Order Date</th>
+                          <th className="py-4 px-6 text-center">Status</th>
+                          <th className="py-4 px-6 text-center">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {orders.map((order) => (
+                          <React.Fragment key={order._id}>
+                            {order.products.map((item, idx) => {
+                              const isProductObj = item.product && typeof item.product === 'object';
+                              const prod = isProductObj ? (item.product as { _id: string; title: string; price: number; images?: string[]; }) : null;
+                              const title = prod ? prod.title : 'Premium Item';
+                              const price = prod ? prod.price : 0;
+                              const image = prod && prod.images?.[0] 
+                                ? prod.images[0] 
+                                : 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200';
+                              
+                              const isCancelable = ['placed', 'confirmed'].includes(order.status);
+
+                              return (
+                                <tr key={`${order._id}-${prod?._id || idx}`} className="hover:bg-white/[0.02] transition-colors">
+                                  {/* Product (Image + Title) */}
+                                  <td className="py-4 px-6 flex items-center gap-3">
+                                    <img src={image} alt="" className="w-12 h-12 rounded-xl object-cover border border-white/5 shrink-0" />
+                                    <span className="font-semibold text-gray-200 line-clamp-1 max-w-[200px]">{title}</span>
+                                  </td>
+                                  
+                                  {/* Qty */}
+                                  <td className="py-4 px-4 text-center font-medium">{item.quantity}</td>
+                                  
+                                  {/* Price */}
+                                  <td className="py-4 px-4 text-right font-mono font-bold text-gray-405">
+                                    ₹{price.toLocaleString('en-IN')}
+                                  </td>
+                                  
+                                  {/* Grand Total (Only show once on the first item row of the order) */}
+                                  <td className="py-4 px-4 text-right font-mono font-extrabold text-purple-400">
+                                    {idx === 0 ? `₹${order.price.toLocaleString('en-IN')}` : ''}
+                                  </td>
+                                  
+                                  {/* Date */}
+                                  <td className="py-4 px-6 text-center text-gray-400">
+                                    {idx === 0 ? new Date(order.createdAt).toLocaleDateString() : ''}
+                                  </td>
+                                  
+                                  {/* Status */}
+                                  <td className="py-4 px-6 text-center">
+                                    {idx === 0 ? getStatusBadge(order.status) : ''}
+                                  </td>
+
+                                  {/* Action */}
+                                  <td className="py-4 px-6 text-center">
+                                    {idx === 0 && isCancelable && (
+                                      <button
+                                        onClick={() => handleCancelOrder(order._id)}
+                                        className="px-3 py-1.5 bg-red-650/10 border border-red-500/20 hover:border-red-500/40 text-red-400 rounded-lg text-[10px] font-bold uppercase transition-all cursor-pointer"
+                                      >
+                                        Cancel
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </React.Fragment>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* MOBILE VIEW: Stacked Vertical Cards Layout (visible under md) */}
+                  <div className="block md:hidden space-y-4">
+                    {orders.map((order) => {
+                      const isCancelable = ['placed', 'confirmed'].includes(order.status);
+                      return (
+                        <div key={order._id} className="glass p-5 rounded-2xl space-y-4">
+                          {/* Card Header: ID & Status */}
+                          <div className="flex justify-between items-center pb-3 border-b border-white/5">
+                            <div>
+                              <span className="text-[9px] uppercase font-mono text-gray-500 block">Order ID</span>
+                              <span className="text-xs font-bold text-purple-400 font-mono">#{order._id.slice(-8)}</span>
                             </div>
                             {getStatusBadge(order.status)}
                           </div>
-                        </div>
 
-                        <div className="space-y-2 text-xs text-gray-400">
-                          <div className="flex items-center gap-2">
-                            <Calendar size={14} className="text-gray-600" />
-                            <span>Placed on {new Date(order.createdAt).toLocaleDateString()}</span>
+                          {/* Products List inside order */}
+                          <div className="space-y-3">
+                            {order.products?.map((item) => {
+                              const isProductObj = item.product && typeof item.product === 'object';
+                              const prod = isProductObj ? (item.product as { _id: string; title: string; price: number; images?: string[]; }) : null;
+                              const title = prod ? prod.title : 'Premium Item';
+                              const price = prod ? prod.price : 0;
+                              const image = prod && prod.images?.[0] 
+                                ? prod.images[0] 
+                                : 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200';
+                              
+                              return (
+                                <div key={item._id || (prod ? prod._id : Math.random().toString())} className="flex items-center justify-between text-xs text-gray-300">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-white/5 bg-slate-900">
+                                      <img src={image} alt="" className="w-full h-full object-cover" />
+                                    </div>
+                                    <div>
+                                      <span className="font-semibold block leading-tight text-gray-200 line-clamp-1 max-w-[155px]">{title}</span>
+                                      <span className="text-[10px] text-gray-500 block mt-0.5">Qty: {item.quantity} × ₹{price.toLocaleString('en-IN')}</span>
+                                    </div>
+                                  </div>
+                                  <span className="font-bold text-gray-300 font-mono">
+                                    ₹{(price * item.quantity).toLocaleString('en-IN')}
+                                  </span>
+                                </div>
+                              );
+                            })}
                           </div>
-                          <div className="flex items-center gap-2">
-                            <MapPin size={14} className="text-gray-600" />
-                            <span className="line-clamp-1">Destination: {order.location}</span>
-                          </div>
-                        </div>
 
-                        {isCancelable && (
-                          <div className="pt-2 border-t border-white/5 flex justify-end">
-                            <button
-                              onClick={() => handleCancelOrder(order._id)}
-                              className="px-4 py-2 bg-red-650/10 border border-red-500/20 hover:border-red-500/40 text-red-400 rounded-xl text-xs font-bold uppercase transition-all cursor-pointer"
-                            >
-                              Cancel Order
-                            </button>
+                          {/* Card Footer: Date & Destination */}
+                          <div className="pt-3 border-t border-white/5 grid grid-cols-2 gap-2 text-[10px] text-gray-550">
+                            <div className="flex items-center gap-1.5">
+                              <Calendar size={12} className="text-gray-700" />
+                              <span>{new Date(order.createdAt).toLocaleDateString()}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 justify-end">
+                              <MapPin size={12} className="text-gray-700" />
+                              <span className="truncate max-w-[100px]">{order.location}</span>
+                            </div>
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+
+                          {/* Grand Total Row */}
+                          <div className="p-3 rounded-xl bg-purple-950/15 border border-purple-500/10 flex justify-between items-center mt-2">
+                            <span className="text-[9px] uppercase font-bold text-gray-400 tracking-wider">Grand Total</span>
+                            <span className="text-xs font-extrabold text-white font-mono">
+                              ₹{order.price.toLocaleString('en-IN')}
+                            </span>
+                          </div>
+
+                          {/* Cancel Order Action button */}
+                          {isCancelable && (
+                            <div className="pt-2 border-t border-white/5 flex justify-end">
+                              <button
+                                onClick={() => handleCancelOrder(order._id)}
+                                className="w-full py-2 bg-red-650/10 border border-red-500/20 hover:border-red-500/40 text-red-400 rounded-xl text-xs font-bold uppercase transition-all cursor-pointer"
+                              >
+                                Cancel Order
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>>
               )}
             </div>
           )}

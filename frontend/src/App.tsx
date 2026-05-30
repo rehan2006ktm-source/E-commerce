@@ -12,6 +12,7 @@ import Checkout from './pages/Checkout';
 import Dashboard from './pages/Dashboard';
 import { useAuthStore } from './store/authStore';
 import { useCartStore } from './store/cartStore';
+import ChatDrawer from './components/chat/ChatDrawer';
 
 // Protected Route Guard
 interface ProtectedRouteProps {
@@ -62,6 +63,7 @@ export const App: React.FC = () => {
 
         {/* Global Slide-out Drawer */}
         <CartDrawer />
+        <ChatDrawer />
 
         {/* Dynamic Route Pages */}
         <main className="flex-grow flex flex-col">

@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { ShoppingCart, User as UserIcon, LogOut, Menu, X, Layers } from 'lucide-react';
+import { ShoppingCart, User as UserIcon, LogOut, Menu, X, Layers, MessageSquare } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useCartStore } from '../../store/cartStore';
 import { useUIStore } from '../../store/uiStore';
+import { useChatStore } from '../../store/chatStore';
 
 export const Navbar: React.FC = () => {
   const navigate = useNavigate();
@@ -11,11 +12,19 @@ export const Navbar: React.FC = () => {
   const { user, isAuthenticated, logout } = useAuthStore();
   const { items } = useCartStore();
   const { toggleCart } = useUIStore();
+  const { inbox, setChatOpen, fetchInbox } = useChatStore();
   
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchInbox();
+    }
+  }, [isAuthenticated, fetchInbox]);
+
   const cartCount = items.reduce((sum, item) => sum + item.quantity, 0);
+  const unreadCount = inbox.reduce((sum, item) => sum + item.unreadCount, 0);
 
   const handleLogout = async () => {
     await logout();
@@ -81,6 +90,21 @@ export const Navbar: React.FC = () => {
             )}
           </button>
 
+          {/* Chat Icon Trigger */}
+          {isAuthenticated && (
+            <button
+              onClick={() => setChatOpen(true)}
+              className="relative p-2.5 rounded-xl border border-white/5 bg-slate-900/50 hover:bg-slate-900 text-gray-300 hover:text-white transition-all cursor-pointer"
+            >
+              <MessageSquare size={18} />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 flex items-center justify-center rounded-full bg-purple-600 border-2 border-slate-950 text-[10px] font-bold text-white shadow-[0_0_10px_rgba(168,85,247,0.5)]">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+          )}
+
           {/* Authentication Actions */}
           {isAuthenticated ? (
             <div className="relative">
@@ -145,6 +169,21 @@ export const Navbar: React.FC = () => {
               </span>
             )}
           </button>
+
+          {/* Chat Icon Trigger */}
+          {isAuthenticated && (
+            <button
+              onClick={() => setChatOpen(true)}
+              className="relative p-2 rounded-lg border border-white/5 bg-slate-900/50 text-gray-300 hover:text-white cursor-pointer"
+            >
+              <MessageSquare size={18} />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-5.5 h-5.5 flex items-center justify-center rounded-full bg-purple-600 text-[9px] font-bold text-white">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+          )}
           
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
